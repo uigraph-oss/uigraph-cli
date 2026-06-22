@@ -69,42 +69,42 @@ type FocalPointMetaRef struct {
 
 // Project represents project-level metadata
 type Project struct {
-	Name        string `yaml:"name"`
-	Environment string `yaml:"environment,omitempty"`
+	Name        string `yaml:"name" json:"name"`
+	Environment string `yaml:"environment,omitempty" json:"environment,omitempty"`
 }
 
 // Service represents service metadata
 type Service struct {
-	Name         string       `yaml:"name"`
-	Category     string       `yaml:"category"`
-	Description  string       `yaml:"description"`
-	Repository   Repository   `yaml:"repository"`
-	Ownership    Ownership    `yaml:"ownership"`
-	Labels       []string     `yaml:"labels,omitempty"`
-	Integrations Integrations `yaml:"integrations,omitempty"`
+	Name         string       `yaml:"name" json:"name"`
+	Category     string       `yaml:"category" json:"category"`
+	Description  string       `yaml:"description" json:"description"`
+	Repository   Repository   `yaml:"repository" json:"repository"`
+	Ownership    Ownership    `yaml:"ownership" json:"ownership"`
+	Labels       []string     `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Integrations Integrations `yaml:"integrations,omitempty" json:"integrations,omitempty"`
 }
 
 // Repository represents repository information
 type Repository struct {
-	Provider string `yaml:"provider"`
-	URL      string `yaml:"url"`
+	Provider string `yaml:"provider" json:"provider"`
+	URL      string `yaml:"url" json:"url"`
 }
 
 // Ownership represents ownership information
 type Ownership struct {
-	Team  string `yaml:"team,omitempty"`
-	Email string `yaml:"email,omitempty"`
+	Team  string `yaml:"team,omitempty" json:"team,omitempty"`
+	Email string `yaml:"email,omitempty" json:"email,omitempty"`
 }
 
 // Integrations represents external integrations
 type Integrations struct {
-	Jira  *Integration `yaml:"jira,omitempty"`
-	Slack *Integration `yaml:"slack,omitempty"`
+	Jira  *Integration `yaml:"jira,omitempty" json:"jira,omitempty"`
+	Slack *Integration `yaml:"slack,omitempty" json:"slack,omitempty"`
 }
 
 // Integration represents a single integration
 type Integration struct {
-	URL string `yaml:"url"`
+	URL string `yaml:"url" json:"url"`
 }
 
 // APIRef represents an API reference in the config
