@@ -185,7 +185,7 @@ type TestCaseRef struct {
 type DocRef struct {
 	Name        string `yaml:"name"`                  // Display name used for upsert matching
 	Path        string `yaml:"path"`                  // path to the file
-	FileType    string `yaml:"fileType,omitempty"`    // pdf, html, markdown, doc, other (auto-detected from extension if omitted)
+	FileType    string `yaml:"fileType,omitempty"`    // pdf, html, markdown, doc, txt, image, video, audio, other (auto-detected from extension if omitted)
 	Description string `yaml:"description,omitempty"` // optional description
 }
 
@@ -313,7 +313,7 @@ func (c *Config) Validate() error {
 	}
 
 	// Docs validation (optional)
-	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "other": true}
+	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "txt": true, "image": true, "video": true, "audio": true, "other": true}
 	for i, doc := range c.Docs {
 		if doc.Name == "" {
 			return fmt.Errorf("docs[%d].name is required", i)
@@ -325,7 +325,7 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("docs[%d].path file does not exist: %s", i, doc.Path)
 		}
 		if doc.FileType != "" && !validFileTypes[doc.FileType] {
-			return fmt.Errorf("docs[%d].fileType must be one of: pdf, html, markdown, doc, other", i)
+			return fmt.Errorf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, other", i)
 		}
 	}
 

@@ -714,6 +714,10 @@ func resolveContentTypeForUpload(fileType, filePath string) string {
 			return "text/plain"
 		case "image":
 			return contentTypeForImagePath(filePath)
+		case "video":
+			return contentTypeForVideoPath(filePath)
+		case "audio":
+			return contentTypeForAudioPath(filePath)
 		}
 	}
 
@@ -740,6 +744,20 @@ func resolveContentTypeForUpload(fileType, filePath string) string {
 			return "image/webp"
 		case "svg":
 			return "image/svg+xml"
+		case "mp4":
+			return "video/mp4"
+		case "mov":
+			return "video/quicktime"
+		case "webm":
+			return "video/webm"
+		case "mp3":
+			return "audio/mpeg"
+		case "wav":
+			return "audio/wav"
+		case "ogg":
+			return "audio/ogg"
+		case "m4a":
+			return "audio/mp4"
 		}
 	}
 
@@ -765,6 +783,42 @@ func contentTypeForImagePath(filePath string) string {
 		return "image/svg+xml"
 	default:
 		return "image/png"
+	}
+}
+
+func contentTypeForVideoPath(filePath string) string {
+	ext := ""
+	if filePath != "" {
+		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(filePath), "."))
+	}
+	switch ext {
+	case "mp4":
+		return "video/mp4"
+	case "mov":
+		return "video/quicktime"
+	case "webm":
+		return "video/webm"
+	default:
+		return "video/mp4"
+	}
+}
+
+func contentTypeForAudioPath(filePath string) string {
+	ext := ""
+	if filePath != "" {
+		ext = strings.ToLower(strings.TrimPrefix(filepath.Ext(filePath), "."))
+	}
+	switch ext {
+	case "mp3":
+		return "audio/mpeg"
+	case "wav":
+		return "audio/wav"
+	case "ogg":
+		return "audio/ogg"
+	case "m4a":
+		return "audio/mp4"
+	default:
+		return "audio/mpeg"
 	}
 }
 
