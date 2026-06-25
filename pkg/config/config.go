@@ -247,6 +247,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("service.repository.url is required")
 	}
 
+	if c.Service.Ownership.Team == "" {
+		return fmt.Errorf("service.ownership.team is required")
+	}
+
 	// API validation
 	for i, api := range c.APIs {
 		if api.Name == "" {
