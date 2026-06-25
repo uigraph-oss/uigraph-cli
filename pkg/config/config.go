@@ -65,6 +65,15 @@ type FocalPointMetaRef struct {
 	DocName      string `yaml:"docName,omitempty"`      // for component_support-kb-troubleshooting
 	// ArchitectureDiagramName matches architectureDiagrams[].name / synced diagram name (component_backend-flow-diagram).
 	ArchitectureDiagramName string `yaml:"architectureDiagramName,omitempty"`
+
+	ModalFields []ComponentModalFieldRef `yaml:"modalFields,omitempty"`
+}
+
+type ComponentModalFieldRef struct {
+	ComponentFieldID string        `yaml:"componentFieldId"`
+	Label            string        `yaml:"label,omitempty"`
+	Type             string        `yaml:"type,omitempty"`
+	Data             []interface{} `yaml:"data,omitempty"`
 }
 
 // Project represents project-level metadata
@@ -364,8 +373,8 @@ func (c *Config) Validate() error {
 					if !validComponentIDs[comp.ComponentID] {
 						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d].componentId '%s' is not valid", i, j, k, l, comp.ComponentID)
 					}
-					if comp.ComponentLinkID == "" && comp.ServiceName == "" {
-						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d]: either componentLinkId or serviceName is required", i, j, k, l)
+					if comp.ComponentLinkID == "" && comp.ServiceName == "" && len(comp.ModalFields) == 0 {
+						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d]: either componentLinkId, serviceName, or modalFields is required", i, j, k, l)
 					}
 					if comp.ComponentID == "component_backend-flow-diagram" && comp.ComponentLinkID == "" {
 						if comp.ServiceName == "" || comp.ArchitectureDiagramName == "" {

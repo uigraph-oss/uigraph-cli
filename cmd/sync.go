@@ -623,12 +623,23 @@ func runSync(cmd *cobra.Command, args []string) error {
 					fmt.Printf("        ✓ Focal point: %s\n", fp.Name)
 
 					for _, comp := range fp.Components {
+						var modalFields []gateway.ComponentFieldItem
+						for _, f := range comp.ModalFields {
+							modalFields = append(modalFields, gateway.ComponentFieldItem{
+								ComponentFieldID: f.ComponentFieldID,
+								Label:            f.Label,
+								Type:             f.Type,
+								Data:             f.Data,
+							})
+						}
+
 						_, err := client.SyncFocalPointMeta(ctx, gateway.FocalPointMetaSyncRequest{
 							MapName:                 m.Name,
 							FrameName:               frame.Name,
 							FocalPointName:          fp.Name,
 							ComponentID:             comp.ComponentID,
 							ComponentLinkID:         comp.ComponentLinkID,
+							ComponentModalFields:    modalFields,
 							ServiceName:             comp.ServiceName,
 							APIGroupName:            comp.APIGroupName,
 							OperationID:             comp.OperationID,
