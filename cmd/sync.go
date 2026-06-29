@@ -44,6 +44,11 @@ func exitGatewayError(action string) {
 	os.Exit(2)
 }
 
+func exitGatewayErrorErr(action string, err error) {
+	fmt.Fprintf(os.Stderr, "Error: failed to %s: %v\n", action, err)
+	os.Exit(2)
+}
+
 // pluralize returns singular or plural form based on count
 func pluralize(count int, singular, plural string) string {
 	if count == 1 {
@@ -245,7 +250,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 			} else {
 				archResp, err := client.SyncArchitectureDiagram(ctx, req)
 				if err != nil {
-					exitGatewayError(fmt.Sprintf("sync architecture diagram %q", ad.Name))
+					exitGatewayErrorErr(fmt.Sprintf("sync architecture diagram %q", ad.Name), err)
 				}
 				versionNote := ""
 				if archResp.VersionCreated {
