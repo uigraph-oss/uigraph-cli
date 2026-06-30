@@ -124,7 +124,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	} else {
 		serviceResp, err := client.SyncService(ctx, syncReq)
 		if err != nil {
-			exitGatewayError("sync service")
+			exitGatewayErrorErr("sync service", err)
 		}
 		// We intentionally ignore service ID; UX only cares about the name.
 		_ = serviceResp
