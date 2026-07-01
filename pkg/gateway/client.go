@@ -244,6 +244,26 @@ type ServiceDatabaseSyncResponse struct {
 	VersionCreated bool   `json:"versionCreated,omitempty"`
 }
 
+// SavedQuerySyncRequest is the request to upsert a saved query onto a service database.
+// SourceRef is the stable key the gateway/API upsert by — a repeat sync with the same
+// SourceRef updates the existing row instead of creating a duplicate.
+type SavedQuerySyncRequest struct {
+	ServiceName string   `json:"serviceName"`
+	DBName      string   `json:"dbName"`
+	SourceRef   string   `json:"sourceRef"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	QueryText   string   `json:"queryText"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// SavedQuerySyncResponse is the response from syncing a saved query
+type SavedQuerySyncResponse struct {
+	SourceRef string `json:"sourceRef"`
+	ID        string `json:"id"`
+	Created   bool   `json:"created"`
+}
+
 // MapSyncRequest is the request to upsert a map by name
 type MapSyncRequest struct {
 	MapName     string `json:"mapName"`
@@ -317,18 +337,18 @@ type ComponentFieldItem struct {
 
 // FocalPointMetaSyncRequest is the request to upsert focal point meta
 type FocalPointMetaSyncRequest struct {
-	MapName              string               `json:"mapName"`
-	FrameName            string               `json:"frameName"`
-	FocalPointName       string               `json:"focalPointName"`
-	ComponentID          string               `json:"componentId"`
-	ComponentLinkID      string               `json:"componentLinkId,omitempty"`
-	ComponentModalFields []ComponentFieldItem `json:"componentModalFields,omitempty"`
-	ServiceName          string               `json:"serviceName,omitempty"`
-	APIGroupName         string               `json:"apiGroupName,omitempty"`
-	OperationID          string               `json:"operationId,omitempty"`
-	TestPackName         string               `json:"testPackName,omitempty"`
-	DocName              string               `json:"docName,omitempty"`
-	ArchitectureDiagramName string            `json:"architectureDiagramName,omitempty"`
+	MapName                 string               `json:"mapName"`
+	FrameName               string               `json:"frameName"`
+	FocalPointName          string               `json:"focalPointName"`
+	ComponentID             string               `json:"componentId"`
+	ComponentLinkID         string               `json:"componentLinkId,omitempty"`
+	ComponentModalFields    []ComponentFieldItem `json:"componentModalFields,omitempty"`
+	ServiceName             string               `json:"serviceName,omitempty"`
+	APIGroupName            string               `json:"apiGroupName,omitempty"`
+	OperationID             string               `json:"operationId,omitempty"`
+	TestPackName            string               `json:"testPackName,omitempty"`
+	DocName                 string               `json:"docName,omitempty"`
+	ArchitectureDiagramName string               `json:"architectureDiagramName,omitempty"`
 }
 
 // FocalPointMetaSyncResponse is the response after focal point meta upsert
@@ -843,6 +863,46 @@ func (c *Client) SyncServiceDatabase(ctx context.Context, req ServiceDatabaseSyn
 	}
 
 	var syncResp ServiceDatabaseSyncResponse
+	if err := json.Unmarshal(respBody, &syncResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &syncResp, nil
+}
+
+// SyncSavedQuery syncs a saved query snippet to the gateway
+func (c *Client) SyncSavedQuery(ctx context.Context, req SavedQuerySyncRequest) (*SavedQuerySyncResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/service/database/query", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var syncResp SavedQuerySyncResponse
 	if err := json.Unmarshal(respBody, &syncResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}

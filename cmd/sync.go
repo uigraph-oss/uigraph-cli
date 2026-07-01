@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -168,6 +169,52 @@ func runSync(cmd *cobra.Command, args []string) error {
 					versionNote = " (new version)"
 				}
 				fmt.Printf("    ✓ Database schema synced: %s%s\n", db.Name, versionNote)
+			}
+		}
+	}
+
+	// 6b. Sync saved queries
+	if len(cfg.Queries) > 0 {
+		fmt.Printf("\n📝 Syncing %d saved %s...\n", len(cfg.Queries), pluralize(len(cfg.Queries), "query", "queries"))
+		serviceName := cfg.Service.Name
+
+		for _, q := range cfg.Queries {
+			fmt.Printf("  • %s (db: %s)\n", q.Name, q.Database)
+
+			queryText := q.QueryText
+			if q.Path != "" {
+				b, err := os.ReadFile(q.Path)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "    Error reading query file %s: %v\n", q.Path, err)
+					os.Exit(1)
+				}
+				queryText = string(b)
+			}
+
+			req := gateway.SavedQuerySyncRequest{
+				ServiceName: serviceName,
+				DBName:      q.Database,
+				SourceRef:   q.Name,
+				Title:       q.Name,
+				Description: q.Description,
+				QueryText:   queryText,
+				Tags:        q.Tags,
+			}
+
+			if dryRun {
+				fmt.Printf("\n=== DRY RUN: Saved Query (%s) ===\n", q.Name)
+				data, _ := json.MarshalIndent(req, "", "  ")
+				fmt.Println(string(data))
+			} else {
+				resp, err := client.SyncSavedQuery(ctx, req)
+				if err != nil {
+					exitGatewayError(fmt.Sprintf("sync saved query %q", q.Name))
+				}
+				note := ""
+				if resp.Created {
+					note = " (new)"
+				}
+				fmt.Printf("    ✓ Query synced: %s%s\n", q.Name, note)
 			}
 		}
 	}
@@ -676,6 +723,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Test Packs: %d\n", len(cfg.TestPacks))
 	fmt.Printf("Test Cases: %d\n", totalTestCases)
 	fmt.Printf("Databases: %d\n", len(cfg.Databases))
+	fmt.Printf("Queries: %d\n", len(cfg.Queries))
 	fmt.Printf("Docs: %d\n", len(cfg.Docs))
 	fmt.Printf("Maps: %d (Frames: %d, Focal Points: %d, Components: %d)\n", len(cfg.Maps), totalFrames, totalFocalPoints, totalComponents)
 	fmt.Printf("Duration: %s\n", formatDuration(elapsed))
@@ -837,4 +885,3 @@ func contentTypeForAudioPath(filePath string) string {
 		return "audio/mpeg"
 	}
 }
-
