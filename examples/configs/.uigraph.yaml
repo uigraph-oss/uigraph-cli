@@ -50,6 +50,20 @@ databases:
     dbType: DynamoDB
     schemaPath: .uigraph/db/dynamo-schema.json
 
+# Saved queries are synced as team-shared (CI has no personal user context).
+# `name` is the stable key used to upsert on repeat syncs — rename it and the
+# next sync creates a new query instead of updating this one in place.
+queries:
+  - name: top-customers-by-revenue
+    database: ecommerce
+    path: .uigraph/queries/top-customers-by-revenue.sql
+    description: Top 20 customers by lifetime revenue, last 90 days
+    tags: [reporting, revenue]
+  - name: orphaned-orders
+    database: ecommerce
+    queryText: "SELECT * FROM orders WHERE customer_id IS NULL"
+    tags: [data-quality]
+
 testPacks:
   - name: Adapter Smoke
     type: smoke

@@ -16,6 +16,7 @@ type Config struct {
 	ArchitectureDiagrams []ArchDiagramRef `yaml:"architectureDiagrams,omitempty"`
 	TestPacks            []TestPackRef    `yaml:"testPacks,omitempty"`
 	Databases            []DatabaseRef    `yaml:"databases,omitempty"`
+	Queries              []QueryRef       `yaml:"queries,omitempty"`
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
 }
@@ -37,11 +38,11 @@ type FrameRef struct {
 
 // FocalPointRef represents a focal point node within a Frame
 type FocalPointRef struct {
-	Name        string               `yaml:"name"`
-	X           float64              `yaml:"x"`
-	Y           float64              `yaml:"y"`
-	Visibility  string               `yaml:"visibility,omitempty"` // public | private; defaults to public
-	Components  []FocalPointMetaRef  `yaml:"components,omitempty"`
+	Name       string              `yaml:"name"`
+	X          float64             `yaml:"x"`
+	Y          float64             `yaml:"y"`
+	Visibility string              `yaml:"visibility,omitempty"` // public | private; defaults to public
+	Components []FocalPointMetaRef `yaml:"components,omitempty"`
 }
 
 // FocalPointMetaRef represents a component linked to a focal point
@@ -204,6 +205,18 @@ type DatabaseRef struct {
 	Dialect    string `yaml:"dialect"`          // postgres, mysql, sqlite, dynamodb, mongodb, other
 	DBType     string `yaml:"dbType,omitempty"` // optional e.g. Postgres, MySQL
 	SchemaPath string `yaml:"schemaPath"`       // path to JSON file (tables or noSQLSchema)
+}
+
+// QueryRef represents a saved SQL/NoSQL query snippet to sync onto a database.
+// Name is the stable key the gateway upserts by (source_ref) — rename it and
+// the next sync creates a new query instead of updating the old one in place.
+type QueryRef struct {
+	Name        string   `yaml:"name"`                // stable key used for upsert matching
+	Database    string   `yaml:"database"`            // must match a databases[].name entry
+	Path        string   `yaml:"path,omitempty"`      // path to a query file (mutually exclusive with queryText)
+	QueryText   string   `yaml:"queryText,omitempty"` // inline query text (mutually exclusive with path)
+	Description string   `yaml:"description,omitempty"`
+	Tags        []string `yaml:"tags,omitempty"`
 }
 
 // Load reads and parses the config file
@@ -408,6 +421,33 @@ func (c *Config) Validate() error {
 		}
 		if _, err := os.Stat(db.SchemaPath); os.IsNotExist(err) {
 			return fmt.Errorf("databases[%d].schemaPath file does not exist: %s", i, db.SchemaPath)
+		}
+	}
+
+	// Queries validation (optional)
+	dbNames := map[string]bool{}
+	for _, db := range c.Databases {
+		dbNames[db.Name] = true
+	}
+	for i, q := range c.Queries {
+		if q.Name == "" {
+			return fmt.Errorf("queries[%d].name is required", i)
+		}
+		if q.Database == "" {
+			return fmt.Errorf("queries[%d].database is required", i)
+		}
+		if !dbNames[q.Database] {
+			return fmt.Errorf("queries[%d].database %q does not match any databases[].name", i, q.Database)
+		}
+		hasPath := q.Path != ""
+		hasInline := q.QueryText != ""
+		if hasPath == hasInline {
+			return fmt.Errorf("queries[%d]: exactly one of path or queryText is required", i)
+		}
+		if hasPath {
+			if _, err := os.Stat(q.Path); os.IsNotExist(err) {
+				return fmt.Errorf("queries[%d].path file does not exist: %s", i, q.Path)
+			}
 		}
 	}
 
