@@ -107,29 +107,33 @@ func runSync(cmd *cobra.Command, args []string) error {
 	client := gateway.NewClient(apiURL, token)
 
 	// 5. Sync service
-	fmt.Printf("\n🚀 Syncing service: %s\n", cfg.Service.Name)
+	if cfg.Service.Name != "" {
+		fmt.Printf("\n🚀 Syncing service: %s\n", cfg.Service.Name)
 
-	syncReq := gateway.ServiceSyncRequest{
-		Project: cfg.Project,
-		Service: cfg.Service,
-		Git:     gitMeta,
-		Source: gateway.Source{
-			Type: "ci",
-			Tool: "uigraph-cli",
-		},
-	}
-
-	if dryRun {
-		fmt.Println("\n=== DRY RUN: Service Sync Request ===")
-		syncReq.Print()
-	} else {
-		serviceResp, err := client.SyncService(ctx, syncReq)
-		if err != nil {
-			exitGatewayErrorErr("sync service", err)
+		syncReq := gateway.ServiceSyncRequest{
+			Project: cfg.Project,
+			Service: cfg.Service,
+			Git:     gitMeta,
+			Source: gateway.Source{
+				Type: "ci",
+				Tool: "uigraph-cli",
+			},
 		}
-		// We intentionally ignore service ID; UX only cares about the name.
-		_ = serviceResp
-		fmt.Printf("✓ Service synced: %s\n", cfg.Service.Name)
+
+		if dryRun {
+			fmt.Println("\n=== DRY RUN: Service Sync Request ===")
+			syncReq.Print()
+		} else {
+			serviceResp, err := client.SyncService(ctx, syncReq)
+			if err != nil {
+				exitGatewayErrorErr("sync service", err)
+			}
+			// We intentionally ignore service ID; UX only cares about the name.
+			_ = serviceResp
+			fmt.Printf("✓ Service synced: %s\n", cfg.Service.Name)
+		}
+	} else {
+		fmt.Println("\nℹ️  No service defined — syncing maps/frames only")
 	}
 
 	// 6. Sync service databases
@@ -714,7 +718,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("📋 Sync Summary")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Printf("Service: %s\n", cfg.Service.Name)
+	if cfg.Service.Name != "" {
+		fmt.Printf("Service: %s\n", cfg.Service.Name)
+	} else {
+		fmt.Println("Service: (none)")
+	}
 	if gitMeta.CommitHash != "" {
 		fmt.Printf("Commit: %s\n", gitMeta.CommitHash)
 	}
