@@ -83,6 +83,7 @@ func TestConfigValidate(t *testing.T) {
 						Provider: "github",
 						URL:      "https://github.com/test/repo",
 					},
+					Ownership: Ownership{Team: "platform"},
 				},
 			},
 			wantErr: false,
@@ -106,14 +107,45 @@ func TestConfigValidate(t *testing.T) {
 			errMsg:  "project.name is required",
 		},
 		{
-			name: "missing service name",
+			name: "no service, maps only",
 			config: Config{
 				Version: 1,
 				Project: Project{Name: "test-project"},
-				Service: Service{},
+				Maps: []MapRef{
+					{
+						Name: "Checkout",
+						Frames: []FrameRef{
+							{
+								Name: "Cart",
+								FocalPoints: []FocalPointRef{
+									{Name: "Total", X: 10, Y: 20},
+								},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "no service, apis present",
+			config: Config{
+				Version: 1,
+				Project: Project{Name: "test-project"},
+				APIs:    []APIRef{{Name: "test-api", Type: "openapi", Path: "spec.yaml"}},
 			},
 			wantErr: true,
-			errMsg:  "service.name is required",
+			errMsg:  "service is required to sync apis",
+		},
+		{
+			name: "no service, docs present",
+			config: Config{
+				Version: 1,
+				Project: Project{Name: "test-project"},
+				Docs:    []DocRef{{Name: "readme", Path: "README.md"}},
+			},
+			wantErr: true,
+			errMsg:  "service is required to sync docs",
 		},
 		{
 			name: "missing service category",
@@ -227,6 +259,7 @@ func TestConfigValidateAPIs(t *testing.T) {
 						Provider: "github",
 						URL:      "https://github.com/test/repo",
 					},
+					Ownership: Ownership{Team: "platform"},
 				},
 				APIs: tt.apis,
 			}

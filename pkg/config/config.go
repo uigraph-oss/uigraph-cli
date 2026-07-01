@@ -247,30 +247,48 @@ func (c *Config) Validate() error {
 	}
 
 	// Service validation
-	if c.Service.Name == "" {
-		return fmt.Errorf("service.name is required")
-	}
-	if c.Service.Category == "" {
-		return fmt.Errorf("service.category is required")
-	}
-	if c.Service.Description == "" {
-		return fmt.Errorf("service.description is required")
-	}
+	if c.Service.Name != "" {
+		if c.Service.Category == "" {
+			return fmt.Errorf("service.category is required")
+		}
+		if c.Service.Description == "" {
+			return fmt.Errorf("service.description is required")
+		}
 
-	// Repository validation
-	if c.Service.Repository.Provider == "" {
-		return fmt.Errorf("service.repository.provider is required")
-	}
-	validProviders := map[string]bool{"github": true, "gitlab": true, "bitbucket": true}
-	if !validProviders[c.Service.Repository.Provider] {
-		return fmt.Errorf("service.repository.provider must be one of: github, gitlab, bitbucket")
-	}
-	if c.Service.Repository.URL == "" {
-		return fmt.Errorf("service.repository.url is required")
-	}
+		// Repository validation
+		if c.Service.Repository.Provider == "" {
+			return fmt.Errorf("service.repository.provider is required")
+		}
+		validProviders := map[string]bool{"github": true, "gitlab": true, "bitbucket": true}
+		if !validProviders[c.Service.Repository.Provider] {
+			return fmt.Errorf("service.repository.provider must be one of: github, gitlab, bitbucket")
+		}
+		if c.Service.Repository.URL == "" {
+			return fmt.Errorf("service.repository.url is required")
+		}
 
-	if c.Service.Ownership.Team == "" {
-		return fmt.Errorf("service.ownership.team is required")
+		if c.Service.Ownership.Team == "" {
+			return fmt.Errorf("service.ownership.team is required")
+		}
+	} else {
+		if len(c.APIs) > 0 {
+			return fmt.Errorf("service is required to sync apis; configs without a service may only sync maps and frames")
+		}
+		if len(c.Databases) > 0 {
+			return fmt.Errorf("service is required to sync databases; configs without a service may only sync maps and frames")
+		}
+		if len(c.Queries) > 0 {
+			return fmt.Errorf("service is required to sync queries; configs without a service may only sync maps and frames")
+		}
+		if len(c.ArchitectureDiagrams) > 0 {
+			return fmt.Errorf("service is required to sync architectureDiagrams; configs without a service may only sync maps and frames")
+		}
+		if len(c.TestPacks) > 0 {
+			return fmt.Errorf("service is required to sync testPacks; configs without a service may only sync maps and frames")
+		}
+		if len(c.Docs) > 0 {
+			return fmt.Errorf("service is required to sync docs; configs without a service may only sync maps and frames")
+		}
 	}
 
 	// API validation
