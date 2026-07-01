@@ -31,3 +31,5 @@ Thumbs.db
 # Build artifacts
 dist/
 build/
+/uigraph
+/uigraph-cli
