@@ -217,6 +217,7 @@ type ServiceDocCompleteRequest struct {
 	ContentHash string `json:"contentHash"`
 	FileType    string `json:"fileType,omitempty"`
 	Description string `json:"description,omitempty"`
+	CommitHash  string `json:"commitHash,omitempty"`
 }
 
 // ServiceDocCompleteResponse is the response after completing doc upload
@@ -268,6 +269,7 @@ type SavedQuerySyncResponse struct {
 type MapSyncRequest struct {
 	MapName     string `json:"mapName"`
 	Description string `json:"description,omitempty"`
+	CommitHash  string `json:"commitHash,omitempty"`
 }
 
 // MapSyncResponse is the response after map upsert
@@ -284,6 +286,7 @@ type FramePrepareRequest struct {
 	ContentHash string `json:"contentHash,omitempty"`
 	FileSize    int64  `json:"fileSize,omitempty"`
 	ImagePath   string `json:"imagePath,omitempty"`
+	CommitHash  string `json:"commitHash,omitempty"`
 }
 
 // FramePrepareResponse tells the CLI what to do next
@@ -302,6 +305,7 @@ type FrameCompleteRequest struct {
 	FileID      string `json:"fileId"`
 	ContentHash string `json:"contentHash"`
 	Description string `json:"description,omitempty"`
+	CommitHash  string `json:"commitHash,omitempty"`
 }
 
 // FrameCompleteResponse is the response after frame finalization
@@ -318,6 +322,7 @@ type FocalPointSyncRequest struct {
 	X              float64 `json:"x"`
 	Y              float64 `json:"y"`
 	Visibility     string  `json:"visibility,omitempty"`
+	CommitHash     string  `json:"commitHash,omitempty"`
 }
 
 // FocalPointSyncResponse is the response after focal point upsert
@@ -349,6 +354,7 @@ type FocalPointMetaSyncRequest struct {
 	TestPackName            string               `json:"testPackName,omitempty"`
 	DocName                 string               `json:"docName,omitempty"`
 	ArchitectureDiagramName string               `json:"architectureDiagramName,omitempty"`
+	CommitHash              string               `json:"commitHash,omitempty"`
 }
 
 // FocalPointMetaSyncResponse is the response after focal point meta upsert

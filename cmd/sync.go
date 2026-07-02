@@ -531,6 +531,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 					ContentHash: contentHash,
 					FileType:    doc.FileType,
 					Description: doc.Description,
+					CommitHash:  gitMeta.CommitHash,
 				}
 
 				_, err := client.CompleteServiceDocUpload(ctx, completeReq)
@@ -589,6 +590,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 			_, err := client.SyncMap(ctx, gateway.MapSyncRequest{
 				MapName:     m.Name,
 				Description: m.Description,
+				CommitHash:  gitMeta.CommitHash,
 			})
 			if err != nil {
 				exitGatewayError(fmt.Sprintf("sync map %q", m.Name))
@@ -604,6 +606,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 					FrameName:   frame.Name,
 					Description: frame.Description,
 					ImagePath:   frame.ImagePath,
+					CommitHash:  gitMeta.CommitHash,
 				}
 
 				if frame.ImagePath != "" {
@@ -639,6 +642,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 							FileID:      *prepResp.FileID,
 							ContentHash: prepReq.ContentHash,
 							Description: frame.Description,
+							CommitHash:  gitMeta.CommitHash,
 						})
 						if err != nil {
 							exitGatewayError(fmt.Sprintf("complete frame image sync for %q", frame.Name))
@@ -671,6 +675,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 						X:              fp.X,
 						Y:              fp.Y,
 						Visibility:     visibility,
+						CommitHash:     gitMeta.CommitHash,
 					})
 					if err != nil {
 						exitGatewayError(fmt.Sprintf("sync focal point %q in frame %q", fp.Name, frame.Name))
@@ -702,6 +707,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 							TestPackName:            comp.TestPackName,
 							DocName:                 comp.DocName,
 							ArchitectureDiagramName: comp.ArchitectureDiagramName,
+							CommitHash:              gitMeta.CommitHash,
 						})
 						if err != nil {
 							exitGatewayError(fmt.Sprintf("sync component %q for focal point %q", comp.ComponentID, fp.Name))
