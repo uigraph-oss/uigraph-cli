@@ -18,13 +18,13 @@ This README stays intentionally brief. The hosted docs are the source of truth f
 ### Install with Go
 
 ```bash
-go install github.com/uigraph-app/uigraph-cli@latest
+go install github.com/uigraph-oss/uigraph-cli@latest
 ```
 
 ### Build from source
 
 ```bash
-git clone https://github.com/uigraph-app/uigraph-cli.git
+git clone https://github.com/uigraph-oss/uigraph-cli.git
 cd uigraph-cli
 make build
 ```

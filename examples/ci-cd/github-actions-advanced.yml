@@ -18,7 +18,7 @@ jobs:
 
       - name: Install UiGraph CLI
         run: |
-          go install github.com/uigraph-app/uigraph-cli@latest
+          go install github.com/uigraph-oss/uigraph-cli@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Dry run on PR

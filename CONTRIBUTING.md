@@ -27,7 +27,7 @@ This means:
 ### Clone and Build
 
 ```bash
-git clone https://github.com/uigraph-app/uigraph-cli.git
+git clone https://github.com/uigraph-oss/uigraph-cli.git
 cd uigraph-cli
 make build
 ```
@@ -285,7 +285,7 @@ All submissions require review. We look for:
 
 - 📧 Email: dev@uigraph.app
 - 💬 Slack: [uigraph.slack.com](https://uigraph.slack.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/uigraph-app/uigraph-cli/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/uigraph-oss/uigraph-cli/issues)
 
 ## License
 

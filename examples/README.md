@@ -299,4 +299,4 @@ Warning: Git metadata unavailable, continuing without it
 
 - 📧 Email: support@uigraph.app
 - 💬 Slack: [uigraph.slack.com](https://uigraph.slack.com)
-- 🐛 Issues: [GitHub Issues](https://github.com/uigraph-app/uigraph-cli/issues)
+- 🐛 Issues: [GitHub Issues](https://github.com/uigraph-oss/uigraph-cli/issues)

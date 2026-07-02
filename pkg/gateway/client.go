@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/uigraph-app/uigraph-cli/pkg/config"
-	"github.com/uigraph-app/uigraph-cli/pkg/git"
+	"github.com/uigraph-oss/uigraph-cli/pkg/config"
+	"github.com/uigraph-oss/uigraph-cli/pkg/git"
 )
 
 // Client is a gateway API client

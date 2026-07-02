@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/uigraph-app/uigraph-cli/cmd"
+	"github.com/uigraph-oss/uigraph-cli/cmd"
 )
 
 func main() {
