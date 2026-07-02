@@ -1,0 +1,121 @@
+{
+  "name": "payments",
+  "description": "hello",
+  "dialect": "dynamodb",
+  "primaryKey": {
+    "partitionKey": "pk1",
+    "partitionKeyType": "S",
+    "sortKey": "gh",
+    "sortKeyType": "N"
+  },
+  "globalSecondaryIndexes": [
+    {
+      "id": "32c91a5e-ffbe-47a4-cfd2-20d1cec68396",
+      "name": "gs1-index",
+      "partitionKey": "gs1-pk",
+      "partitionKeyType": "S",
+      "sortKey": "gs1-sk",
+      "sortKeyType": "S"
+    }
+  ],
+  "attributes": [
+    {
+      "id": "bf0b4bea-07c3-45d8-755d-bf9727696e95",
+      "name": "Name",
+      "type": "string",
+      "required": true,
+      "notes": ""
+    },
+    {
+      "id": "065b657b-1935-4a2b-9977-95070ccbe223",
+      "name": "Payload",
+      "type": "object",
+      "required": true,
+      "notes": "",
+      "fields": [
+        {
+          "id": "26177450-fb89-4baf-80e7-798b49408c18",
+          "name": "name",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+          "name": "amount",
+          "type": "number",
+          "required": true
+        },
+        {
+          "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+          "name": "currency",
+          "type": "string",
+          "required": false
+        },
+        {
+          "id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+          "name": "timestamp",
+          "type": "string",
+          "required": true
+        },
+        {
+          "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+          "name": "metadata",
+          "type": "object",
+          "required": false,
+          "fields": [
+            {
+              "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+              "name": "key",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c",
+              "name": "value",
+              "type": "string",
+              "required": false
+            },
+            {
+              "id": "a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d",
+              "name": "tags",
+              "type": "array",
+              "required": false
+            }
+          ]
+        },
+        {
+          "id": "b8c9d0e1-f2a3-4b4c-5d6e-7f8a9b0c1d2e",
+          "name": "billing_address2",
+          "type": "object",
+          "required": false,
+          "fields": [
+            {
+              "id": "c9d0e1f2-a3b4-4c5d-6e7f-8a9b0c1d2e3f",
+              "name": "street1",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "d0e1f2a3-b4c5-4d6e-7f8a-9b0c1d2e3f4a",
+              "name": "city",
+              "type": "string",
+              "required": true
+            },
+            {
+              "id": "e1f2a3b4-c5d6-4e7f-8a9b-0c1d2e3f4a5b",
+              "name": "postal_code",
+              "type": "string",
+              "required": false
+            },
+            {
+              "id": "f2a3b4c5-d6e7-4f8a-9b0c-1d2e3f4a5b6c",
+              "name": "country",
+              "type": "string",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+type Query {
+  # Get analytics summary
+  summary(timeRange: TimeRange!): AnalyticsSummary!
+  
+  # Get events for a specific entity
+  events(entityId: ID!, limit: Int = 100): [Event!]!
+  
+  # Get metrics for a dashboard
+  metrics(dashboardId: ID!): [Metric!]!
+}
+
+type Mutation {
+  # Track a new event
+  trackEvent(input: EventInput!): Event!
+  
+  # Create a custom dashboard
+  createDashboard(input: DashboardInput!): Dashboard!
+}
+
+type AnalyticsSummary {
+  totalEvents: Int!
+  uniqueUsers: Int!
+  averageSessionDuration: Float!
+  topPages: [PageStat!]!
+}
+
+type Event {
+  id: ID!
+  eventType: String!
+  entityId: String!
+  timestamp: String!
+  properties: JSON
+}
+
+type Metric {
+  name: String!
+  value: Float!
+  unit: String
+  trend: TrendDirection
+}
+
+type PageStat {
+  path: String!
+  views: Int!
+  uniqueVisitors: Int!
+}
+
+type Dashboard {
+  id: ID!
+  name: String!
+  metrics: [Metric!]!
+  createdAt: String!
+}
+
+input EventInput {
+  eventType: String!
+  entityId: String!
+  properties: JSON
+}
+
+input DashboardInput {
+  name: String!
+  metricIds: [ID!]!
+}
+
+input TimeRange {
+  start: String!
+  end: String!
+}
+
+enum TrendDirection {
+  UP
+  DOWN
+  STABLE
+}
+
+scalar JSON

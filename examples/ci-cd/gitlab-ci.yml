@@ -1,0 +1,29 @@
+uigraph-sync:
+  stage: deploy
+  image: golang:1.23
+  script:
+    - go install github.com/uigraph-app/uigraph-cli@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - uigraph-cli sync
+  only:
+    - main
+    - master
+  variables:
+    UIGRAPH_TOKEN: $UIGRAPH_TOKEN
+  tags:
+    - docker
+
+# Optional: Run on merge requests with dry-run
+uigraph-sync-dry-run:
+  stage: test
+  image: golang:1.23
+  script:
+    - go install github.com/uigraph-app/uigraph-cli@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - uigraph-cli sync --dry-run
+  only:
+    - merge_requests
+  variables:
+    UIGRAPH_TOKEN: $UIGRAPH_TOKEN
+  tags:
+    - docker

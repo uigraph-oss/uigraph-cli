@@ -1,0 +1,141 @@
+{
+  "name": "Auth state diagram context",
+  "description": "Mock context for the authentication state diagram (complex-mermaid.txt): states and groups for Unauthenticated, LoginPending, MFA, Session, and Security flows.",
+  "nodes": {
+    "Unauthenticated": {
+      "name": "Unauthenticated",
+      "type": "cloud",
+      "cloud": "AWS",
+      "service": "Amazon Athena",
+      "data": {
+        "initial": { "type": "Boolean Toggle", "value": true },
+        "label": { "type": "Text Input", "value": "Unauthenticated" }
+      },
+      "style" :{
+        "fill": "#088ae7",
+        "stroke": "#0076D2",
+        "strokeWidth": 2,
+        "borderRadius": 2,
+        "strokeStyle": "dotted",
+        "borderAnimationEnabled": true
+      }
+    },
+    "LoginPending": {
+      "name": "LoginPending",
+      "data": {
+        "label": { "type": "Text Input", "value": "LoginPending" },
+        "url": { "type": "URL Input", "value": "https://example.com" },
+        "otp_ttl": { "type": "Number Input", "value": 300 },
+        "notes": { "type": "Text Editor", "value": "Multi-line notes" },
+        "expires_at": { "type": "Date Picker", "value": "2025-12-31" },
+        "role": { "type": "Dropdown", "value": "user" },
+        "scopes": { "type": "Multi Select", "value": ["read", "write"] },
+        "mfa_enabled": { "type": "Boolean Toggle", "value": false },
+        "description": { "type": "Rich Text Editor", "value": "## Login pending state\n\nUser has **submitted credentials** and we are:\n- Validating against the identity provider\n- Checking MFA requirements\n- Applying rate limits\n\n*Next:* `auth_success` or `auth_failed`." },
+        "config_json": { "type": "Code Editor", "value": "# Python: auth config\ndef get_login_config():\n    return {\n        \"mfa_required\": True,\n        \"max_attempts\": 5,\n        \"lockout_minutes\": 30,\n    }" },
+        "handler_go": { "type": "Code Editor", "value": "// Go: login handler\nfunc (h *AuthHandler) HandleLoginPending(ctx context.Context, req *LoginRequest) error {\n\tif err := h.validateCredentials(req); err != nil {\n\t\treturn err\n\t}\n\treturn h.checkMFA(ctx, req.UserID)\n}" },
+        "schema_sql": { "type": "Code Editor", "value": "-- MySQL: login sessions\nCREATE TABLE login_sessions (\n  id BINARY(16) PRIMARY KEY,\n  user_id BIGINT NOT NULL,\n  state ENUM('LoginPending', 'Authenticated') DEFAULT 'LoginPending',\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);" },
+        "headers": { "type": "Key-Value List", "value": [] },
+        "tags": { "type": "Tag Input", "value": ["auth", "login"] },
+        "active_period": { "type": "Date Range Picker", "value": null },
+        "theme": { "type": "Color Picker", "value": "#1976D2" },
+        "retry_count": { "type": "Slider", "value": 3 },
+        "provider": { "type": "Search Select", "value": "local" },
+        "permissions": { "type": "Checkbox Group", "value": ["read"], "options": ["read", "write"] }
+      }
+    },
+    "MFARequired": {
+      "name": "MFARequired",
+      "data": {
+        "otp_ttl_seconds": { "type": "Number Input", "value": 300 }
+      }
+    },
+    "MFAPending": {
+      "name": "MFAPending",
+      "data": {
+        "attempts": { "type": "Number Input", "value": 0 }
+      }
+    },
+    "Authenticated": {
+      "name": "Authenticated",
+      "data": {
+        "role": { "type": "Dropdown", "value": "user" }
+      }
+    },
+    "SessionActive": {
+      "name": "SessionActive",
+      "cloud": "aws",
+      "data": {
+        "ttl_minutes": { "type": "Number Input", "value": 30 },
+        "session_id": { "type": "Text Input", "value": "" }
+      }
+    },
+    "TokenRefresh": {
+      "name": "TokenRefresh",
+      "data": {
+        "refresh_attempts": { "type": "Number Input", "value": 0 }
+      }
+    },
+    "PermissionCheck": {
+      "name": "PermissionCheck",
+      "type": "data-source",
+      "dbConfig": {
+        "service": "UIGraph Adapter",
+        "database": "ecommerce",
+        "tableName": "users"
+      },
+      "data": {
+        "resource": { "type": "Text Input", "value": "" },
+        "action": { "type": "Dropdown", "value": "read" }
+      },
+      "style": {
+        "backgroundColor": "#f0f0f0"
+      }
+    },
+    "Authorized": {
+      "name": "Authorized",
+      "data": {}
+    },
+    "ResourceRead": {
+      "name": "ResourceRead",
+      "data": {}
+    },
+    "ResourceWrite": {
+      "name": "ResourceWrite",
+      "data": {}
+    },
+    "AuditLog": {
+      "type": "text",
+      "name": "AuditLog",
+      "data": {
+        "log_level": { "type": "Dropdown", "value": "info" }
+      }
+    },
+    "Forbidden": {
+      "name": "Forbidden",
+      "data": {}
+    },
+    "SecurityAlert": {
+      "name": "SecurityAlert",
+      "data": {
+        "violation_count": { "type": "Number Input", "value": 0 }
+      }
+    },
+    "AccountLocked": {
+      "name": "AccountLocked",
+      "data": {
+        "locked_until": { "type": "Date Picker", "value": null }
+      }
+    },
+    "Logout": {
+      "name": "Logout",
+      "data": {}
+    },
+    "SupportReview": {
+      "name": "SupportReview",
+      "data": {
+        "reviewed_by": { "type": "Text Input", "value": "" }
+      }
+    }
+  }
+}

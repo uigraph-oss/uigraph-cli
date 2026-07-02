@@ -1,0 +1,184 @@
+{
+  "name": "System overview diagram context",
+  "description": "Mock context for a system overview diagram: API, worker, queue, databases, cache, and external payment provider.",
+  "nodes": {
+    "api": {
+      "type": "cloud",
+      "name": "Public API",
+      "cloud": "AWS",
+      "service": "Amazon API Gateway",
+      "data": {
+        "Owner": { "type": "Text Input", "value": "Platform Team" },
+        "Docs": {
+          "type": "URL Input",
+          "value": "https://example.com/docs/public-api"
+        },
+        "Rate limit (req/s)": { "type": "Number Input", "value": 500 },
+        "Tags": { "type": "Tag Input", "value": ["edge", "public"] }
+      },
+      "style": {
+        "fill": "#0ea5e9",
+        "stroke": "#0369a1",
+        "strokeWidth": 2,
+        "borderRadius": 4,
+        "strokeStyle": "solid",
+        "borderAnimationEnabled": true
+      }
+    },
+    "worker": {
+      "type": "component",
+      "componentId": "flow_diagram_component_service",
+      "name": "Order Worker",
+      "data": {
+        "Language": { "type": "Dropdown", "value": "Go" },
+        "Concurrency": { "type": "Number Input", "value": 16 },
+        "Notes": {
+          "type": "Text Editor",
+          "value": "Consumes jobs from the queue and writes to databases."
+        },
+        "Deployment": {
+          "type": "Rich Text Editor",
+          "value": "Deployed as a **serverless** worker with rolling updates."
+        }
+      },
+      "style": {
+        "fill": "#22c55e",
+        "stroke": "#15803d",
+        "strokeWidth": 2,
+        "borderRadius": 4
+      }
+    },
+    "queue": {
+      "type": "cloud",
+      "name": "Job Queue",
+      "cloud": "AWS",
+      "service": "Amazon SQS",
+      "data": {
+        "FIFO": { "type": "Boolean Toggle", "value": true },
+        "Visibility timeout (sec)": { "type": "Number Input", "value": 60 }
+      },
+      "style": {
+        "fill": "#f97316",
+        "stroke": "#ea580c",
+        "strokeWidth": 2,
+        "borderRadius": 4,
+        "strokeStyle": "dashed"
+      }
+    },
+    "db": {
+      "type": "data-source",
+      "name": "Orders DB",
+      "dbConfig": {
+        "service": "UIGraph Adapter",
+        "database": "ecommerce",
+        "tableName": "orders"
+      },
+      "data": {
+        "RPO (minutes)": { "type": "Number Input", "value": 15 },
+        "RTO (minutes)": { "type": "Number Input", "value": 30 }
+      },
+      "style": {
+        "fill": "#6366f1",
+        "stroke": "#4f46e5",
+        "strokeWidth": 2,
+        "borderRadius": 4
+      }
+    },
+    "cache": {
+      "type": "cloud",
+      "name": "Read Cache",
+      "cloud": "AWS",
+      "service": "Amazon ElastiCache",
+      "data": {
+        "TTL (seconds)": { "type": "Number Input", "value": 120 },
+        "Hit rate (%)": { "type": "Slider", "value": 80 }
+      },
+      "style": {
+        "fill": "#22d3ee",
+        "stroke": "#0e7490",
+        "strokeWidth": 2,
+        "borderRadius": 4,
+        "strokeStyle": "dotted"
+      }
+    },
+    "ext": {
+      "type": "text",
+      "name": "Payment Provider",
+      "data": {
+        "Provider": { "type": "Text Input", "value": "Stripe" },
+        "Status page": {
+          "type": "URL Input",
+          "value": "https://status.stripe.com"
+        }
+      }
+    }
+  },
+  "edges": {
+    "api-queue": {
+      "label": "enqueue job",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 2,
+        "strokeStyle": "solid"
+      },
+      "markerEnd": { "type": "arrow" }
+    },
+    "queue-worker": {
+      "label": "deliver job",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 2,
+        "strokeStyle": "dashed",
+        "borderAnimationEnabled": true
+      },
+      "markerEnd": { "type": "arrow" }
+    },
+    "worker-db": {
+      "label": "write order",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 3,
+        "strokeStyle": "solid"
+      },
+      "markerEnd": { "type": "arrow" }
+    },
+    "worker-cache": {
+      "label": "warm cache",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 2,
+        "strokeStyle": "dotted"
+      },
+      "markerEnd": { "type": "arrow" }
+    },
+    "api-db": {
+      "label": "read order",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 2,
+        "strokeStyle": "solid"
+      },
+      "markerEnd": { "type": "arrow" }
+    },
+    "worker-ext": {
+      "label": "charge card",
+      "style": {
+        "stroke": "#111827",
+        "strokeWidth": 2,
+        "strokeStyle": "solid",
+        "borderAnimationEnabled": true
+      },
+      "markerEnd": { "type": "arrow" }
+    }
+  },
+  "groups": {
+    "core-backend": {
+      "name": "Core backend",
+      "nodes": ["api", "worker", "queue", "db", "cache"],
+      "style": {
+        "backgroundColor": "#E3F2FD",
+        "borderColor": "#1976D2"
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+flowchart LR
+  api[HTTP API]
+  worker[Background Worker]
+  queue{{Job Queue}}
+  db[(Orders DB)]
+  cache[(Cache)]
+  ext[(Payment Provider)]
+
+  api --> queue
+  queue --> worker
+  worker --> db
+  worker --> cache
+  api --> db
+  worker --> ext
+

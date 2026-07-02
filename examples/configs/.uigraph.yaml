@@ -1,0 +1,92 @@
+version: 1
+
+project:
+  name: uigraph-cli
+  environment: production
+
+service:
+  name: UIGraph CLI
+  category: Backend
+  description: CLI for syncing service and API specifications to UiGraph
+  repository:
+    provider: github
+    url: https://gitlab.com/uigraph/uigraph-cli.git
+
+  ownership:
+    team: uigraph
+    email: team@uigraph.com
+
+  labels:
+    - core
+    - backend
+    - adapter
+
+  integrations:
+    slack:
+      url: https://uigraph.slack.com/team/U0821234567
+    jira:
+      url: https://uigraph.atlassian.net/projects/UIG
+
+apis:
+  - name: uigraph-cli-openapi-spec
+    type: openapi
+    path: .uigraph/openapi/storefront-sample.yaml
+
+architectureDiagrams:
+  - name: Login Flow
+    path: .uigraph/diagrams/login-flow/login-flow.mmd
+    contextPath: .uigraph/diagrams/login-flow/context.json
+  - name: System Overview
+    path: .uigraph/diagrams/system-overview/system-overview.mmd
+    contextPath: .uigraph/diagrams/system-overview/context.json
+  
+databases:
+  - name: ecommerce
+    dialect: mysql
+    dbType: MySQL
+    schemaPath: .uigraph/db/ecommerce-schema.sql
+  - name: payments
+    dialect: dynamodb
+    dbType: DynamoDB
+    schemaPath: .uigraph/db/dynamo-schema.json
+
+# Saved queries are synced as team-shared (CI has no personal user context).
+# `name` is the stable key used to upsert on repeat syncs — rename it and the
+# next sync creates a new query instead of updating this one in place.
+queries:
+  - name: top-customers-by-revenue
+    database: ecommerce
+    path: .uigraph/queries/top-customers-by-revenue.sql
+    description: Top 20 customers by lifetime revenue, last 90 days
+    tags: [reporting, revenue]
+  - name: orphaned-orders
+    database: ecommerce
+    queryText: "SELECT * FROM orders WHERE customer_id IS NULL"
+    tags: [data-quality]
+
+testPacks:
+  - name: Adapter Smoke
+    type: smoke
+    testCases:
+      - title: Register user returns 201
+        type: api
+        order: 1
+        apiGroupName: uigraph-cli-openapi-spec
+        operationId: registerUser
+        expectedStatusCode: 201
+      - title: Login returns 200
+        type: api
+        order: 2
+        apiGroupName: uigraph-cli-openapi-spec
+        operationId: loginUser
+        expectedStatusCode: 200
+      - title: Verify login flow in API docs
+        type: manual
+        order: 3
+        stepsList:
+          - action: Open the synced API group in UiGraph
+            expectedResult: The `uigraph-cli-openapi-spec` API group is visible
+          - action: Open the login operation details
+            expectedResult: The `loginUser` endpoint shows request and response details
+        expectedOutcome: The login endpoint is easy to inspect in UiGraph
+        requiresEvidence: false

@@ -1,0 +1,40 @@
+stateDiagram-v2
+    [*] --> Unauthenticated
+
+    Unauthenticated --> LoginPending : submit_credentials
+    LoginPending --> Unauthenticated : auth_failed
+    LoginPending --> MFARequired : auth_success && mfa_enabled
+    LoginPending --> Authenticated : auth_success && !mfa_enabled
+
+    MFARequired --> MFAPending : send_otp
+    MFAPending --> MFARequired : otp_expired
+    MFAPending --> Authenticated : otp_valid
+    MFAPending --> AccountLocked : otp_failed_3_times
+
+    Authenticated --> SessionActive
+    SessionActive --> TokenRefresh : token_near_expiry
+    TokenRefresh --> SessionActive : refresh_success
+    TokenRefresh --> Unauthenticated : refresh_failed
+
+    SessionActive --> PermissionCheck : request_resource
+    PermissionCheck --> Authorized : permission_ok
+    PermissionCheck --> Forbidden : permission_denied
+
+    Authorized --> ResourceRead : read
+    Authorized --> ResourceWrite : write
+    ResourceWrite --> AuditLog : write_complete
+    ResourceRead --> AuditLog : read_complete
+    AuditLog --> SessionActive
+
+    Forbidden --> SecurityAlert
+    SecurityAlert --> AccountLocked : repeated_violation
+    SecurityAlert --> SessionActive : single_violation
+
+    SessionActive --> Logout : user_logout
+    SessionActive --> Unauthenticated : session_timeout
+    Logout --> Unauthenticated
+
+    AccountLocked --> SupportReview : admin_review
+    SupportReview --> Unauthenticated : unlock_account
+
+    Authenticated --> [*]
