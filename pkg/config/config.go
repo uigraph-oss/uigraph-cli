@@ -7,7 +7,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the .uigraph.yaml structure
 type Config struct {
 	Version              int              `yaml:"version"`
 	Project              Project          `yaml:"project"`
@@ -21,50 +20,37 @@ type Config struct {
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
 }
 
-// MapRef represents a UIGraph Map (Project) with nested Frames and Focal Points
 type MapRef struct {
 	Name        string     `yaml:"name"`
 	Description string     `yaml:"description,omitempty"`
 	Frames      []FrameRef `yaml:"frames,omitempty"`
 }
 
-// FrameRef represents a Frame (Page) within a Map
 type FrameRef struct {
 	Name        string          `yaml:"name"`
 	Description string          `yaml:"description,omitempty"`
-	ImagePath   string          `yaml:"imagePath,omitempty"` // path to background image for the frame canvas
+	ImagePath   string          `yaml:"imagePath,omitempty"`
 	FocalPoints []FocalPointRef `yaml:"focalPoints,omitempty"`
 }
 
-// FocalPointRef represents a focal point node within a Frame
 type FocalPointRef struct {
 	Name       string              `yaml:"name"`
 	X          float64             `yaml:"x"`
 	Y          float64             `yaml:"y"`
-	Visibility string              `yaml:"visibility,omitempty"` // public | private; defaults to public
+	Visibility string              `yaml:"visibility,omitempty"`
 	Components []FocalPointMetaRef `yaml:"components,omitempty"`
 }
 
-// FocalPointMetaRef represents a component linked to a focal point
 type FocalPointMetaRef struct {
-	// ComponentID identifies the component type, e.g.:
-	//   component_api-contract
-	//   component_test-case-suite
-	//   component_support-kb-troubleshooting
 	ComponentID string `yaml:"componentId"`
 
-	// ComponentLinkID is the direct link ID (use this when you know the ID).
-	// Alternatively, use the name-based fields below for human-friendly config.
 	ComponentLinkID string `yaml:"componentLinkId,omitempty"`
 
-	// Name-based resolution (gateway resolves to componentLinkId at sync time)
-	ServiceName  string `yaml:"serviceName,omitempty"`  // service that owns the linked entity
-	APIGroupName string `yaml:"apiGroupName,omitempty"` // for component_api-contract
-	// OperationID is the OpenAPI operationId (must match synced spec); resolves to componentMetaId like the UI.
-	OperationID  string `yaml:"operationId,omitempty"`
-	TestPackName string `yaml:"testPackName,omitempty"` // for component_test-case-suite
-	DocName      string `yaml:"docName,omitempty"`      // for component_support-kb-troubleshooting
-	// ArchitectureDiagramName matches architectureDiagrams[].name / synced diagram name (component_backend-flow-diagram).
+	ServiceName             string `yaml:"serviceName,omitempty"`
+	APIGroupName            string `yaml:"apiGroupName,omitempty"`
+	OperationID             string `yaml:"operationId,omitempty"`
+	TestPackName            string `yaml:"testPackName,omitempty"`
+	DocName                 string `yaml:"docName,omitempty"`
 	ArchitectureDiagramName string `yaml:"architectureDiagramName,omitempty"`
 
 	ModalFields []ComponentModalFieldRef `yaml:"modalFields,omitempty"`
@@ -77,13 +63,11 @@ type ComponentModalFieldRef struct {
 	Data             []interface{} `yaml:"data,omitempty"`
 }
 
-// Project represents project-level metadata
 type Project struct {
 	Name        string `yaml:"name" json:"name"`
 	Environment string `yaml:"environment,omitempty" json:"environment,omitempty"`
 }
 
-// Service represents service metadata
 type Service struct {
 	Name         string       `yaml:"name" json:"name"`
 	Category     string       `yaml:"category" json:"category"`
@@ -94,85 +78,72 @@ type Service struct {
 	Integrations Integrations `yaml:"integrations,omitempty" json:"integrations,omitempty"`
 }
 
-// Repository represents repository information
 type Repository struct {
 	Provider string `yaml:"provider" json:"provider"`
 	URL      string `yaml:"url" json:"url"`
 }
 
-// Ownership represents ownership information
 type Ownership struct {
 	Team  string `yaml:"team,omitempty" json:"team,omitempty"`
 	Email string `yaml:"email,omitempty" json:"email,omitempty"`
 }
 
-// Integrations represents external integrations
 type Integrations struct {
 	Jira  *Integration `yaml:"jira,omitempty" json:"jira,omitempty"`
 	Slack *Integration `yaml:"slack,omitempty" json:"slack,omitempty"`
 }
 
-// Integration represents a single integration
 type Integration struct {
 	URL string `yaml:"url" json:"url"`
 }
 
-// APIRef represents an API reference in the config
 type APIRef struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 	Path string `yaml:"path"`
 }
 
-// ArchDiagramRef represents an architecture diagram (mermaid) reference in the config
 type ArchDiagramRef struct {
 	Name        string `yaml:"name"`
 	Path        string `yaml:"path"`
 	ContextPath string `yaml:"contextPath,omitempty"`
 }
 
-// TestPackRef represents a test pack and its test cases in the config
 type TestPackRef struct {
 	Name         string        `yaml:"name"`
-	Type         string        `yaml:"type"` // smoke | regression | manual
+	Type         string        `yaml:"type"`
 	Environment  string        `yaml:"environment,omitempty"`
 	ReleaseLabel string        `yaml:"releaseLabel,omitempty"`
 	TestCases    []TestCaseRef `yaml:"testCases,omitempty"`
 }
 
-// StepRef represents a single manual step with optional expected result
 type StepRef struct {
 	Action         string `yaml:"action"`
 	ExpectedResult string `yaml:"expectedResult,omitempty"`
 }
 
-// AssertionRef represents an API assertion (field, type, value) in YAML.
 type AssertionRef struct {
 	Field string `yaml:"field"`
 	Type  string `yaml:"type"`
 	Value string `yaml:"value"`
 }
 
-// TestCaseRef represents a test case in the config
 type TestCaseRef struct {
-	Type  string  `yaml:"type"` // api | manual
+	Type  string  `yaml:"type"`
 	Title string  `yaml:"title"`
 	Order float64 `yaml:"order"`
 
-	// Common optional
 	Description           string   `yaml:"description,omitempty"`
-	Priority              string   `yaml:"priority,omitempty"` // p0 | p1 | p2 | p3
+	Priority              string   `yaml:"priority,omitempty"`
 	Tags                  []string `yaml:"tags,omitempty"`
 	LinkedTicket          string   `yaml:"linkedTicket,omitempty"`
 	EstimatedDurationMins int      `yaml:"estimatedDurationMins,omitempty"`
 	TestOwner             string   `yaml:"testOwner,omitempty"`
 
-	// Map/Frame/Focal Point Reference (will be resolved to linkedMapNodeId internally)
-	MapName        string `yaml:"mapName,omitempty"`        // Map (Project) name
-	FrameName      string `yaml:"frameName,omitempty"`      // Frame (Page) name
-	FocalPointName string `yaml:"focalPointName,omitempty"` // Focal Point name
+	MapName        string `yaml:"mapName,omitempty"`
+	FrameName      string `yaml:"frameName,omitempty"`
+	FocalPointName string `yaml:"focalPointName,omitempty"`
 
-	// API-specific
 	APIGroupName       string         `yaml:"apiGroupName,omitempty"`
 	OperationID        string         `yaml:"operationId,omitempty"`
 	ExpectedStatusCode int            `yaml:"expectedStatusCode,omitempty"`
@@ -181,7 +152,6 @@ type TestCaseRef struct {
 	ResponseBody       string         `yaml:"responseBody,omitempty"`
 	Assertions         []AssertionRef `yaml:"assertions,omitempty"`
 
-	// Manual-specific: stepsList (action + optional expectedResult per step)
 	StepsList        []StepRef `yaml:"stepsList,omitempty"`
 	ExpectedOutcome  string    `yaml:"expectedOutcome,omitempty"`
 	Preconditions    string    `yaml:"preconditions,omitempty"`
@@ -191,35 +161,29 @@ type TestCaseRef struct {
 	IsCritical       bool      `yaml:"isCritical"`
 }
 
-// DocRef represents a documentation file to sync
 type DocRef struct {
-	Name        string `yaml:"name"`                  // Display name used for upsert matching
-	Path        string `yaml:"path"`                  // path to the file
-	FileType    string `yaml:"fileType,omitempty"`    // pdf, html, markdown, doc, txt, image, video, audio, other (auto-detected from extension if omitted)
-	Description string `yaml:"description,omitempty"` // optional description
+	Name        string `yaml:"name"`
+	Path        string `yaml:"path"`
+	FileType    string `yaml:"fileType,omitempty"`
+	Description string `yaml:"description,omitempty"`
 }
 
-// DatabaseRef represents a service database schema to sync (path to JSON schema file)
 type DatabaseRef struct {
-	Name       string `yaml:"name"`             // logical DB name (dbName)
-	Dialect    string `yaml:"dialect"`          // postgres, mysql, sqlite, dynamodb, mongodb, other
-	DBType     string `yaml:"dbType,omitempty"` // optional e.g. Postgres, MySQL
-	SchemaPath string `yaml:"schemaPath"`       // path to JSON file (tables or noSQLSchema)
+	Name       string `yaml:"name"`
+	Dialect    string `yaml:"dialect"`
+	DBType     string `yaml:"dbType,omitempty"`
+	SchemaPath string `yaml:"schemaPath"`
 }
 
-// QueryRef represents a saved SQL/NoSQL query snippet to sync onto a database.
-// Name is the stable key the gateway upserts by (source_ref) — rename it and
-// the next sync creates a new query instead of updating the old one in place.
 type QueryRef struct {
-	Name        string   `yaml:"name"`                // stable key used for upsert matching
-	Database    string   `yaml:"database"`            // must match a databases[].name entry
-	Path        string   `yaml:"path,omitempty"`      // path to a query file (mutually exclusive with queryText)
-	QueryText   string   `yaml:"queryText,omitempty"` // inline query text (mutually exclusive with path)
+	Name        string   `yaml:"name"`
+	Database    string   `yaml:"database"`
+	Path        string   `yaml:"path,omitempty"`
+	QueryText   string   `yaml:"queryText,omitempty"`
 	Description string   `yaml:"description,omitempty"`
 	Tags        []string `yaml:"tags,omitempty"`
 }
 
-// Load reads and parses the config file
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -234,19 +198,15 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-// Validate checks if the config has all required fields
 func (c *Config) Validate() error {
-	// Version check
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported config version: %d (expected 1)", c.Version)
 	}
 
-	// Project validation
 	if c.Project.Name == "" {
 		return fmt.Errorf("project.name is required")
 	}
 
-	// Service validation
 	if c.Service.Name != "" {
 		if c.Service.Category == "" {
 			return fmt.Errorf("service.category is required")
@@ -255,7 +215,6 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("service.description is required")
 		}
 
-		// Repository validation
 		if c.Service.Repository.Provider == "" {
 			return fmt.Errorf("service.repository.provider is required")
 		}
@@ -291,7 +250,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// API validation
 	for i, api := range c.APIs {
 		if api.Name == "" {
 			return fmt.Errorf("apis[%d].name is required", i)
@@ -306,13 +264,11 @@ func (c *Config) Validate() error {
 		if api.Path == "" {
 			return fmt.Errorf("apis[%d].path is required", i)
 		}
-		// Check if file exists
 		if _, err := os.Stat(api.Path); os.IsNotExist(err) {
 			return fmt.Errorf("apis[%d].path file does not exist: %s", i, api.Path)
 		}
 	}
 
-	// Architecture diagrams validation (optional)
 	for i, ad := range c.ArchitectureDiagrams {
 		if ad.Name == "" {
 			return fmt.Errorf("architectureDiagrams[%d].name is required", i)
@@ -330,7 +286,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Test packs validation (optional)
 	validTestPackTypes := map[string]bool{"smoke": true, "regression": true, "manual": true}
 	validTestCaseTypes := map[string]bool{"api": true, "manual": true}
 	for i, pack := range c.TestPacks {
@@ -356,7 +311,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Docs validation (optional)
 	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "txt": true, "image": true, "video": true, "audio": true, "other": true}
 	for i, doc := range c.Docs {
 		if doc.Name == "" {
@@ -373,7 +327,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Maps validation (optional)
 	validComponentIDs := map[string]bool{
 		"component_api-contract":               true,
 		"component_test-case-suite":            true,
@@ -422,7 +375,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Databases validation (optional)
 	validDialects := map[string]bool{"postgres": true, "mysql": true, "sqlite": true, "dynamodb": true, "mongodb": true, "other": true}
 	for i, db := range c.Databases {
 		if db.Name == "" {
@@ -442,7 +394,6 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	// Queries validation (optional)
 	dbNames := map[string]bool{}
 	for _, db := range c.Databases {
 		dbNames[db.Name] = true
