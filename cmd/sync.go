@@ -203,6 +203,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 				Description: q.Description,
 				QueryText:   queryText,
 				Tags:        q.Tags,
+				Git:         gateway.GitMetadataMinimal{CommitHash: gitMeta.CommitHash},
 			}
 
 			if dryRun {

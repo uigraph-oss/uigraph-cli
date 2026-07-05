@@ -249,13 +249,14 @@ type ServiceDatabaseSyncResponse struct {
 // SourceRef is the stable key the gateway/API upsert by — a repeat sync with the same
 // SourceRef updates the existing row instead of creating a duplicate.
 type SavedQuerySyncRequest struct {
-	ServiceName string   `json:"serviceName"`
-	DBName      string   `json:"dbName"`
-	SourceRef   string   `json:"sourceRef"`
-	Title       string   `json:"title"`
-	Description string   `json:"description,omitempty"`
-	QueryText   string   `json:"queryText"`
-	Tags        []string `json:"tags,omitempty"`
+	ServiceName string             `json:"serviceName"`
+	DBName      string             `json:"dbName"`
+	SourceRef   string             `json:"sourceRef"`
+	Title       string             `json:"title"`
+	Description string             `json:"description,omitempty"`
+	QueryText   string             `json:"queryText"`
+	Tags        []string           `json:"tags,omitempty"`
+	Git         GitMetadataMinimal `json:"git"`
 }
 
 // SavedQuerySyncResponse is the response from syncing a saved query
