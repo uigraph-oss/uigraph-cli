@@ -1,0 +1,19 @@
+# External test cases referenced from .uigraph.yaml via `testPacks[].testCasesPath`.
+# These are merged with any inline `testCases` in that pack.
+testCases:
+  - title: Login returns 200
+    type: api
+    order: 2
+    apiGroupName: uigraph-cli-openapi-spec
+    operationId: loginUser
+    expectedStatusCode: 200
+  - title: Verify login flow in API docs
+    type: manual
+    order: 3
+    stepsList:
+      - action: Open the synced API group in UiGraph
+        expectedResult: The `uigraph-cli-openapi-spec` API group is visible
+      - action: Open the login operation details
+        expectedResult: The `loginUser` endpoint shows request and response details
+    expectedOutcome: The login endpoint is easy to inspect in UiGraph
+    requiresEvidence: false
