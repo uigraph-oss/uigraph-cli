@@ -16,6 +16,7 @@ type Config struct {
 	TestPacks            []TestPackRef    `yaml:"testPacks,omitempty"`
 	Databases            []DatabaseRef    `yaml:"databases,omitempty"`
 	Queries              []QueryRef       `yaml:"queries,omitempty"`
+	QueryFiles           []string         `yaml:"queryFiles,omitempty"`
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
 }
@@ -110,11 +111,20 @@ type ArchDiagramRef struct {
 }
 
 type TestPackRef struct {
-	Name         string        `yaml:"name"`
-	Type         string        `yaml:"type"`
-	Environment  string        `yaml:"environment,omitempty"`
-	ReleaseLabel string        `yaml:"releaseLabel,omitempty"`
-	TestCases    []TestCaseRef `yaml:"testCases,omitempty"`
+	Name          string        `yaml:"name"`
+	Type          string        `yaml:"type"`
+	Environment   string        `yaml:"environment,omitempty"`
+	ReleaseLabel  string        `yaml:"releaseLabel,omitempty"`
+	TestCases     []TestCaseRef `yaml:"testCases,omitempty"`
+	TestCasesPath string        `yaml:"testCasesPath,omitempty"`
+}
+
+type testCasesFile struct {
+	TestCases []TestCaseRef `yaml:"testCases"`
+}
+
+type queriesFile struct {
+	Queries []QueryRef `yaml:"queries"`
 }
 
 type StepRef struct {
@@ -193,6 +203,34 @@ func Load(path string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	for i := range cfg.TestPacks {
+		if cfg.TestPacks[i].TestCasesPath == "" {
+			continue
+		}
+		p := cfg.TestPacks[i].TestCasesPath
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read testCases file %q: %w", p, err)
+		}
+		var f testCasesFile
+		if err := yaml.Unmarshal(b, &f); err != nil {
+			return nil, fmt.Errorf("failed to parse testCases file %q: %w", p, err)
+		}
+		cfg.TestPacks[i].TestCases = append(cfg.TestPacks[i].TestCases, f.TestCases...)
+	}
+
+	for _, p := range cfg.QueryFiles {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read queries file %q: %w", p, err)
+		}
+		var f queriesFile
+		if err := yaml.Unmarshal(b, &f); err != nil {
+			return nil, fmt.Errorf("failed to parse queries file %q: %w", p, err)
+		}
+		cfg.Queries = append(cfg.Queries, f.Queries...)
 	}
 
 	return &cfg, nil
