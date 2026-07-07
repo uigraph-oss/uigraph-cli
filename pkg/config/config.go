@@ -346,12 +346,6 @@ func (c *Config) Validate() error {
 			if tc.Title == "" {
 				return fmt.Errorf("testPacks[%d].testCases[%d].title is required", i, j)
 			}
-			if tc.Type == "api" && tc.APIGroupName == "" {
-				return fmt.Errorf("testPacks[%d].testCases[%d].apiGroupName is required for api test cases", i, j)
-			}
-			if tc.Type == "api" && tc.OperationID == "" {
-				return fmt.Errorf("testPacks[%d].testCases[%d].operationId is required for api test cases", i, j)
-			}
 		}
 	}
 
