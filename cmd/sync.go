@@ -36,7 +36,7 @@ This command is designed to run in CI/CD environments and requires UIGRAPH_TOKEN
 
 func init() {
 	syncCmd.Flags().StringVar(&configPath, "config", ".uigraph.yaml", "Path to config file")
-	syncCmd.Flags().StringVar(&apiURL, "api-url", "https://api.prod.uigraph.app/uigraph-gateway", "Gateway API URL")
+	syncCmd.Flags().StringVar(&apiURL, "api-url", "", "Gateway API URL (defaults to UIGRAPH_GATEWAY_URL env var)")
 	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print payloads without sending to gateway")
 }
 
@@ -74,6 +74,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 	token := os.Getenv("UIGRAPH_TOKEN")
 	if token == "" {
 		fmt.Fprintln(os.Stderr, "Error: UIGRAPH_TOKEN environment variable is required")
+		os.Exit(1)
+	}
+
+	if apiURL == "" {
+		apiURL = os.Getenv("UIGRAPH_GATEWAY_URL")
+	}
+	if apiURL == "" {
+		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --api-url or UIGRAPH_GATEWAY_URL environment variable)")
 		os.Exit(1)
 	}
 
