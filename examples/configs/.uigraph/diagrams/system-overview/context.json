@@ -69,8 +69,8 @@
       "type": "data-source",
       "name": "Orders DB",
       "dbConfig": {
-        "service": "UIGraph Adapter",
-        "database": "ecommerce",
+        "serviceName": "UIGraph Adapter",
+        "databaseName": "ecommerce",
         "tableName": "orders"
       },
       "data": {
