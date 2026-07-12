@@ -80,8 +80,8 @@
       "name": "PermissionCheck",
       "type": "data-source",
       "dbConfig": {
-        "service": "UIGraph Adapter",
-        "database": "ecommerce",
+        "serviceName": "UIGraph Adapter",
+        "databaseName": "ecommerce",
         "tableName": "users"
       },
       "data": {
