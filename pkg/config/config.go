@@ -106,13 +106,14 @@ type APIRef struct {
 }
 
 type DependencyRef struct {
-	Name        string   `yaml:"name" json:"name"`
-	Service     string   `yaml:"service" json:"service"`
-	Type        string   `yaml:"type" json:"type"`
-	Criticality string   `yaml:"criticality" json:"criticality"`
-	Description string   `yaml:"description,omitempty" json:"description,omitempty"`
-	API         string   `yaml:"api,omitempty" json:"api,omitempty"`
-	Operations  []string `yaml:"operations,omitempty" json:"operations,omitempty"`
+	Name             string   `yaml:"name" json:"name"`
+	Service          string   `yaml:"service" json:"service"`
+	Type             string   `yaml:"type,omitempty" json:"type,omitempty"`
+	Criticality      string   `yaml:"criticality" json:"criticality"`
+	Description      string   `yaml:"description,omitempty" json:"description,omitempty"`
+	APIGroupName     string   `yaml:"apiGroupName,omitempty" json:"apiGroupName,omitempty"`
+	APIEndpointNames []string `yaml:"apiEndpointNames,omitempty" json:"apiEndpointNames,omitempty"`
+	DatabaseName     string   `yaml:"databaseName,omitempty" json:"databaseName,omitempty"`
 }
 
 type ArchDiagramRef struct {
@@ -321,7 +322,7 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	validDependencyTypes := map[string]bool{"http": true, "grpc": true, "event": true, "queue": true, "database": true}
+	validDependencyTypes := map[string]bool{"http": true, "graphql": true, "grpc": true, "database": true}
 	validCriticalities := map[string]bool{"hard": true, "soft": true}
 	dependencyNames := map[string]bool{}
 	for i, dependency := range c.Dependencies {
@@ -338,11 +339,8 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("dependencies[%d].name must be unique", i)
 		}
 		dependencyNames[dependency.Name] = true
-		if dependency.Type == "" {
-			return fmt.Errorf("dependencies[%d].type is required", i)
-		}
-		if !validDependencyTypes[dependency.Type] {
-			return fmt.Errorf("dependencies[%d].type must be one of: http, grpc, event, queue, database", i)
+		if dependency.Type != "" && !validDependencyTypes[dependency.Type] {
+			return fmt.Errorf("dependencies[%d].type must be one of: http, graphql, grpc, database", i)
 		}
 		if dependency.Criticality == "" {
 			return fmt.Errorf("dependencies[%d].criticality is required", i)
@@ -350,21 +348,15 @@ func (c *Config) Validate() error {
 		if !validCriticalities[dependency.Criticality] {
 			return fmt.Errorf("dependencies[%d].criticality must be one of: hard, soft", i)
 		}
-		if (dependency.Type == "http" || dependency.Type == "grpc") && dependency.API == "" {
-			return fmt.Errorf("dependencies[%d].api is required for type %s", i, dependency.Type)
-		}
-		if dependency.Type != "http" && dependency.Type != "grpc" && (dependency.API != "" || len(dependency.Operations) > 0) {
-			return fmt.Errorf("dependencies[%d].api and operations are only allowed for http and grpc dependencies", i)
-		}
-		operationNames := map[string]bool{}
-		for j, operation := range dependency.Operations {
-			if operation == "" {
-				return fmt.Errorf("dependencies[%d].operations[%d] is required", i, j)
+		endpointNames := map[string]bool{}
+		for j, endpointName := range dependency.APIEndpointNames {
+			if endpointName == "" {
+				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] is required", i, j)
 			}
-			if operationNames[operation] {
-				return fmt.Errorf("dependencies[%d].operations[%d] must be unique", i, j)
+			if endpointNames[endpointName] {
+				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] must be unique", i, j)
 			}
-			operationNames[operation] = true
+			endpointNames[endpointName] = true
 		}
 	}
 

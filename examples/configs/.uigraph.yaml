@@ -38,7 +38,9 @@ dependencies:
     type: http
     criticality: hard
     description: Sends synchronized catalog metadata to the gateway.
-    api: gateway-sync-api
+    apiGroupName: gateway-sync-api
+    apiEndpointNames:
+      - SyncCatalog
 
 architectureDiagrams:
   - name: Login Flow

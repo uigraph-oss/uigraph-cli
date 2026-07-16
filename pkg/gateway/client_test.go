@@ -120,7 +120,7 @@ func TestSyncServiceDependencies_Success(t *testing.T) {
 	resp, err := client.SyncServiceDependencies(context.Background(), ServiceDependenciesSyncRequest{
 		ServiceName: "payments",
 		Dependencies: []config.DependencyRef{{
-			Name: "payment-provider", Service: "Stripe Payments", Type: "http", Criticality: "hard", API: "payments-v1", Operations: []string{"CreatePayment"},
+			Name: "payment-provider", Service: "Stripe Payments", Type: "http", Criticality: "hard", APIGroupName: "payments-v1", APIEndpointNames: []string{"CreatePayment"},
 		}},
 	})
 	if err != nil {
@@ -129,7 +129,7 @@ func TestSyncServiceDependencies_Success(t *testing.T) {
 	if gotMethod != http.MethodPost || gotPath != "/v1/sync/service/dependencies" || gotToken != "secret-token" {
 		t.Errorf("request = %s %s token=%s", gotMethod, gotPath, gotToken)
 	}
-	if gotReq.ServiceName != "payments" || gotReq.Dependencies[0].Service != "Stripe Payments" || gotReq.Dependencies[0].API != "payments-v1" {
+	if gotReq.ServiceName != "payments" || gotReq.Dependencies[0].Service != "Stripe Payments" || gotReq.Dependencies[0].APIGroupName != "payments-v1" {
 		t.Errorf("request body mismatch: %+v", gotReq)
 	}
 	if resp.Message != "dependencies synced" {
