@@ -277,6 +277,52 @@ func TestConfigValidateAPIs(t *testing.T) {
 	}
 }
 
+func TestConfigValidateDependencies(t *testing.T) {
+	validService := Service{
+		Name:        "Test Service",
+		Category:    "Backend",
+		Description: "Test",
+		Repository:  Repository{Provider: "github", URL: "https://github.com/test/repo"},
+		Ownership:   Ownership{Team: "platform"},
+	}
+	tests := []struct {
+		name    string
+		deps    []DependencyRef
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid dependencies",
+			deps: []DependencyRef{
+				{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"CreatePayment"}},
+				{Name: "orders-store", Service: "orders-db", Type: "database", Criticality: "soft", DatabaseName: "orders"},
+				{Name: "unknown", Service: "external", Criticality: "soft"},
+			},
+		},
+		{name: "missing name", deps: []DependencyRef{{Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api"}}, wantErr: true, errMsg: "dependencies[0].name is required"},
+		{name: "invalid type", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "rest", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].type must be one of"},
+		{name: "invalid criticality", deps: []DependencyRef{{Name: "events", Service: "sns", Type: "http", Criticality: "optional"}}, wantErr: true, errMsg: "dependencies[0].criticality must be one of"},
+		{name: "missing service", deps: []DependencyRef{{Name: "events", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service is required"},
+		{name: "self dependency", deps: []DependencyRef{{Name: "self", Service: "Test Service", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service must not reference the current service"},
+		{name: "duplicate name", deps: []DependencyRef{{Name: "dup", Service: "svc-a", Criticality: "hard"}, {Name: "dup", Service: "svc-b", Type: "http", Criticality: "soft", APIGroupName: "api"}}, wantErr: true, errMsg: "dependencies[1].name must be unique"},
+		{name: "empty api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{""}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[0] is required"},
+		{name: "duplicate api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"op1", "op1"}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[1] must be unique"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{Version: 1, Project: Project{Name: "test-project"}, Service: validService, Dependencies: tt.deps}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && !contains(err.Error(), tt.errMsg) {
+				t.Errorf("Validate() error message = %v, want to contain %v", err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))

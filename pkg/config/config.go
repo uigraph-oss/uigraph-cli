@@ -12,6 +12,7 @@ type Config struct {
 	Project              Project          `yaml:"project"`
 	Service              Service          `yaml:"service"`
 	APIs                 []APIRef         `yaml:"apis"`
+	Dependencies         []DependencyRef  `yaml:"dependencies,omitempty"`
 	ArchitectureDiagrams []ArchDiagramRef `yaml:"architectureDiagrams,omitempty"`
 	TestPacks            []TestPackRef    `yaml:"testPacks,omitempty"`
 	Databases            []DatabaseRef    `yaml:"databases,omitempty"`
@@ -102,6 +103,17 @@ type APIRef struct {
 	Name string `yaml:"name"`
 	Type string `yaml:"type"`
 	Path string `yaml:"path"`
+}
+
+type DependencyRef struct {
+	Name             string   `yaml:"name" json:"name"`
+	Service          string   `yaml:"service" json:"service"`
+	Type             string   `yaml:"type,omitempty" json:"type,omitempty"`
+	Criticality      string   `yaml:"criticality" json:"criticality"`
+	Description      string   `yaml:"description,omitempty" json:"description,omitempty"`
+	APIGroupName     string   `yaml:"apiGroupName,omitempty" json:"apiGroupName,omitempty"`
+	APIEndpointNames []string `yaml:"apiEndpointNames,omitempty" json:"apiEndpointNames,omitempty"`
+	DatabaseName     string   `yaml:"databaseName,omitempty" json:"databaseName,omitempty"`
 }
 
 type ArchDiagramRef struct {
@@ -286,6 +298,9 @@ func (c *Config) Validate() error {
 		if len(c.Docs) > 0 {
 			return fmt.Errorf("service is required to sync docs; configs without a service may only sync maps and frames")
 		}
+		if len(c.Dependencies) > 0 {
+			return fmt.Errorf("service is required to sync dependencies; configs without a service may only sync maps and frames")
+		}
 	}
 
 	for i, api := range c.APIs {
@@ -304,6 +319,44 @@ func (c *Config) Validate() error {
 		}
 		if _, err := os.Stat(api.Path); os.IsNotExist(err) {
 			return fmt.Errorf("apis[%d].path file does not exist: %s", i, api.Path)
+		}
+	}
+
+	validDependencyTypes := map[string]bool{"http": true, "graphql": true, "grpc": true, "database": true}
+	validCriticalities := map[string]bool{"hard": true, "soft": true}
+	dependencyNames := map[string]bool{}
+	for i, dependency := range c.Dependencies {
+		if dependency.Name == "" {
+			return fmt.Errorf("dependencies[%d].name is required", i)
+		}
+		if dependency.Service == "" {
+			return fmt.Errorf("dependencies[%d].service is required", i)
+		}
+		if dependency.Service == c.Service.Name {
+			return fmt.Errorf("dependencies[%d].service must not reference the current service", i)
+		}
+		if dependencyNames[dependency.Name] {
+			return fmt.Errorf("dependencies[%d].name must be unique", i)
+		}
+		dependencyNames[dependency.Name] = true
+		if dependency.Type != "" && !validDependencyTypes[dependency.Type] {
+			return fmt.Errorf("dependencies[%d].type must be one of: http, graphql, grpc, database", i)
+		}
+		if dependency.Criticality == "" {
+			return fmt.Errorf("dependencies[%d].criticality is required", i)
+		}
+		if !validCriticalities[dependency.Criticality] {
+			return fmt.Errorf("dependencies[%d].criticality must be one of: hard, soft", i)
+		}
+		endpointNames := map[string]bool{}
+		for j, endpointName := range dependency.APIEndpointNames {
+			if endpointName == "" {
+				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] is required", i, j)
+			}
+			if endpointNames[endpointName] {
+				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] must be unique", i, j)
+			}
+			endpointNames[endpointName] = true
 		}
 	}
 

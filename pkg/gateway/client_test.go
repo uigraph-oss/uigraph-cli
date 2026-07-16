@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/uigraph-oss/uigraph-cli/pkg/config"
 )
 
 func TestSyncSavedQuery_Success(t *testing.T) {
@@ -95,5 +97,42 @@ func TestSyncSavedQuery_ErrorStatus(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("SyncSavedQuery() error = nil, want error on 500 status")
+	}
+}
+
+func TestSyncServiceDependencies_Success(t *testing.T) {
+	var gotPath, gotMethod, gotToken string
+	var gotReq ServiceDependenciesSyncRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		gotToken = r.Header.Get("X-API-Token")
+		if err := json.NewDecoder(r.Body).Decode(&gotReq); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(ServiceDependenciesSyncResponse{Message: "dependencies synced"})
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret-token")
+	resp, err := client.SyncServiceDependencies(context.Background(), ServiceDependenciesSyncRequest{
+		ServiceName: "payments",
+		Dependencies: []config.DependencyRef{{
+			Name: "payment-provider", Service: "Stripe Payments", Type: "http", Criticality: "hard", APIGroupName: "payments-v1", APIEndpointNames: []string{"CreatePayment"},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("SyncServiceDependencies() error = %v", err)
+	}
+	if gotMethod != http.MethodPost || gotPath != "/v1/sync/service/dependencies" || gotToken != "secret-token" {
+		t.Errorf("request = %s %s token=%s", gotMethod, gotPath, gotToken)
+	}
+	if gotReq.ServiceName != "payments" || gotReq.Dependencies[0].Service != "Stripe Payments" || gotReq.Dependencies[0].APIGroupName != "payments-v1" {
+		t.Errorf("request body mismatch: %+v", gotReq)
+	}
+	if resp.Message != "dependencies synced" {
+		t.Errorf("response = %+v", resp)
 	}
 }

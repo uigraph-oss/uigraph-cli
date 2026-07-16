@@ -32,6 +32,16 @@ apis:
     type: openapi
     path: .uigraph/openapi/storefront-sample.yaml
 
+dependencies:
+  - name: gateway-sync-api
+    service: UIGraph Gateway
+    type: http
+    criticality: hard
+    description: Sends synchronized catalog metadata to the gateway.
+    apiGroupName: gateway-sync-api
+    apiEndpointNames:
+      - SyncCatalog
+
 architectureDiagrams:
   - name: Login Flow
     path: .uigraph/diagrams/login-flow/login-flow.mmd
