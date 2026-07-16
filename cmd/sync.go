@@ -276,7 +276,27 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 8. Sync architecture diagrams
+	// 8. Sync service dependencies
+	if len(cfg.Dependencies) > 0 {
+		fmt.Printf("\n🔗 Syncing %d service %s...\n", len(cfg.Dependencies), pluralize(len(cfg.Dependencies), "dependency", "dependencies"))
+		req := gateway.ServiceDependenciesSyncRequest{
+			ServiceName:  cfg.Service.Name,
+			Dependencies: cfg.Dependencies,
+		}
+		if dryRun {
+			fmt.Println("\n=== DRY RUN: Service Dependencies ===")
+			data, _ := json.MarshalIndent(req, "", "  ")
+			fmt.Println(string(data))
+		} else {
+			_, err := client.SyncServiceDependencies(ctx, req)
+			if err != nil {
+				exitGatewayError(fmt.Sprintf("sync service dependencies: %v", err))
+			}
+			fmt.Printf("✓ Synced %d service %s\n", len(cfg.Dependencies), pluralize(len(cfg.Dependencies), "dependency", "dependencies"))
+		}
+	}
+
+	// 9. Sync architecture diagrams
 	if len(cfg.ArchitectureDiagrams) > 0 {
 		fmt.Printf("\n📊 Syncing %d architecture %s...\n", len(cfg.ArchitectureDiagrams), pluralize(len(cfg.ArchitectureDiagrams), "diagram", "diagrams"))
 
@@ -322,7 +342,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 9. Sync test packs and test cases
+	// 10. Sync test packs and test cases
 	totalTestCases := 0
 	for _, pack := range cfg.TestPacks {
 		totalTestCases += len(pack.TestCases)
@@ -477,7 +497,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 10. Sync service docs
+	// 11. Sync service docs
 	if len(cfg.Docs) > 0 {
 		fmt.Printf("\n📄 Syncing %d documentation %s...\n", len(cfg.Docs), pluralize(len(cfg.Docs), "file", "files"))
 		serviceName := cfg.Service.Name
@@ -554,7 +574,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 11. Sync maps (focal points and component links)
+	// 12. Sync maps (focal points and component links)
 	totalFrames := 0
 	totalFocalPoints := 0
 	totalComponents := 0
@@ -728,7 +748,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 12. Print summary
+	// 13. Print summary
 	elapsed := time.Since(startTime)
 	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("📋 Sync Summary")
@@ -743,6 +763,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("API Groups: %d\n", len(cfg.APIs))
 	fmt.Printf("Architecture Diagrams: %d\n", len(cfg.ArchitectureDiagrams))
+	fmt.Printf("Service Dependencies: %d\n", len(cfg.Dependencies))
 	fmt.Printf("Test Packs: %d\n", len(cfg.TestPacks))
 	fmt.Printf("Test Cases: %d\n", totalTestCases)
 	fmt.Printf("Databases: %d\n", len(cfg.Databases))

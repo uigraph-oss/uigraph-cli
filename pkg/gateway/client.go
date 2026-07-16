@@ -73,6 +73,15 @@ type APIGroupSyncResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
+type ServiceDependenciesSyncRequest struct {
+	ServiceName  string                 `json:"serviceName"`
+	Dependencies []config.DependencyRef `json:"dependencies"`
+}
+
+type ServiceDependenciesSyncResponse struct {
+	Message string `json:"message,omitempty"`
+}
+
 type ArchitectureDiagramSyncRequest struct {
 	ServiceName    string `json:"serviceName"`
 	Name           string `json:"name"`
@@ -394,6 +403,45 @@ func (c *Client) SyncAPIGroup(ctx context.Context, req APIGroupSyncRequest) (*AP
 	}
 
 	var syncResp APIGroupSyncResponse
+	if err := json.Unmarshal(respBody, &syncResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &syncResp, nil
+}
+
+func (c *Client) SyncServiceDependencies(ctx context.Context, req ServiceDependenciesSyncRequest) (*ServiceDependenciesSyncResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/service/dependencies", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var syncResp ServiceDependenciesSyncResponse
 	if err := json.Unmarshal(respBody, &syncResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}

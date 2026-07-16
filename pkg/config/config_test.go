@@ -277,6 +277,54 @@ func TestConfigValidateAPIs(t *testing.T) {
 	}
 }
 
+func TestConfigValidateDependencies(t *testing.T) {
+	validService := Service{
+		Name:        "Test Service",
+		Category:    "Backend",
+		Description: "Test",
+		Repository:  Repository{Provider: "github", URL: "https://github.com/test/repo"},
+		Ownership:   Ownership{Team: "platform"},
+	}
+	tests := []struct {
+		name    string
+		deps    []DependencyRef
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid dependencies",
+			deps: []DependencyRef{
+				{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", API: "payments-api", Operations: []string{"CreatePayment"}},
+				{Name: "events", Service: "aws-sns", Type: "event", Criticality: "soft"},
+			},
+		},
+		{name: "missing name", deps: []DependencyRef{{Service: "stripe", Type: "http", Criticality: "hard", API: "payments-api"}}, wantErr: true, errMsg: "dependencies[0].name is required"},
+		{name: "invalid type", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "rest", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].type must be one of"},
+		{name: "missing api for grpc", deps: []DependencyRef{{Name: "ledger", Service: "ledger-provider", Type: "grpc", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].api is required for type grpc"},
+		{name: "missing api for http", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].api is required for type http"},
+		{name: "invalid criticality", deps: []DependencyRef{{Name: "events", Service: "sns", Type: "event", Criticality: "optional"}}, wantErr: true, errMsg: "dependencies[0].criticality must be one of"},
+		{name: "missing service", deps: []DependencyRef{{Name: "events", Type: "event", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service is required"},
+		{name: "self dependency", deps: []DependencyRef{{Name: "self", Service: "Test Service", Type: "event", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service must not reference the current service"},
+		{name: "duplicate name", deps: []DependencyRef{{Name: "dup", Service: "svc-a", Type: "event", Criticality: "hard"}, {Name: "dup", Service: "svc-b", Type: "http", Criticality: "soft", API: "api"}}, wantErr: true, errMsg: "dependencies[1].name must be unique"},
+		{name: "api on non-http type rejected", deps: []DependencyRef{{Name: "events", Service: "sns", Type: "event", Criticality: "hard", API: "my-api", Operations: []string{"op1"}}}, wantErr: true, errMsg: "api and operations are only allowed for http and grpc dependencies"},
+		{name: "empty operation rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", API: "payments-api", Operations: []string{""}}}, wantErr: true, errMsg: "dependencies[0].operations[0] is required"},
+		{name: "duplicate operation rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", API: "payments-api", Operations: []string{"op1", "op1"}}}, wantErr: true, errMsg: "dependencies[0].operations[1] must be unique"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{Version: 1, Project: Project{Name: "test-project"}, Service: validService, Dependencies: tt.deps}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && !contains(err.Error(), tt.errMsg) {
+				t.Errorf("Validate() error message = %v, want to contain %v", err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
