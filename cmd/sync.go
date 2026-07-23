@@ -764,7 +764,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 				SourceType: project.Source.Type,
 				SourceURL:  project.Source.URL,
 				Team:       project.Ownership.Team,
-				Email:      project.Ownership.Email,
 			}
 
 			mlflowToken := project.Source.Token

@@ -18,7 +18,6 @@ type MLProjectItem struct {
 	SourceType  string `json:"sourceType"`
 	SourceURL   string `json:"sourceUrl"`
 	Team        string `json:"team"`
-	Email       string `json:"email"`
 }
 
 type MLModelItem struct {
