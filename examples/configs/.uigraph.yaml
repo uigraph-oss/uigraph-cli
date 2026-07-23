@@ -49,7 +49,7 @@ architectureDiagrams:
   - name: System Overview
     path: .uigraph/diagrams/system-overview/system-overview.mmd
     contextPath: .uigraph/diagrams/system-overview/context.json
-  
+
 databases:
   - name: ecommerce
     dialect: mysql
@@ -69,7 +69,7 @@ databases:
 queries:
   - name: orphaned-orders
     database: ecommerce
-    queryText: "SELECT * FROM orders WHERE customer_id IS NULL"
+    queryText: 'SELECT * FROM orders WHERE customer_id IS NULL'
     tags: [data-quality]
 
 queryFiles:
@@ -88,3 +88,27 @@ testPacks:
         operationId: registerUser
         expectedStatusCode: 201
     testCasesPath: .uigraph/tests/adapter-smoke.yaml
+
+ml:
+  - name: Facebook
+    type: model
+    ownership:
+      team: uigraph
+      email: team@uigraph.com
+    source:
+      type: mlflow
+      url: http://localhost:5000
+    models:
+      - name: Saba
+        description: Predicts user behavior based on historical data.
+
+  - name: Facebook Training
+    type: training
+    ownership:
+      team: uigraph
+      email: team@uigraph.com
+    source:
+      type: mlflow
+      url: http://localhost:5000
+    experiments:
+      - name: Sample experiment

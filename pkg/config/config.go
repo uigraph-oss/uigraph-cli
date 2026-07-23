@@ -20,6 +20,31 @@ type Config struct {
 	QueryFiles           []string         `yaml:"queryFiles,omitempty"`
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
+	ML                   []MLProjectRef   `yaml:"ml,omitempty"`
+}
+
+type MLProjectRef struct {
+	Name        string            `yaml:"name"`
+	Type        string            `yaml:"type"`
+	Ownership   Ownership         `yaml:"ownership,omitempty"`
+	Source      MLSourceRef       `yaml:"source"`
+	Models      []MLModelRef      `yaml:"models,omitempty"`
+	Experiments []MLExperimentRef `yaml:"experiments,omitempty"`
+}
+
+type MLSourceRef struct {
+	Type  string `yaml:"type"`
+	URL   string `yaml:"url"`
+	Token string `yaml:"token,omitempty"`
+}
+
+type MLModelRef struct {
+	Name        string `yaml:"name"`
+	Description string `yaml:"description,omitempty"`
+}
+
+type MLExperimentRef struct {
+	Name string `yaml:"name"`
 }
 
 type MapRef struct {
@@ -507,6 +532,47 @@ func (c *Config) Validate() error {
 		if hasPath {
 			if _, err := os.Stat(q.Path); os.IsNotExist(err) {
 				return fmt.Errorf("queries[%d].path file does not exist: %s", i, q.Path)
+			}
+		}
+	}
+
+	for i, p := range c.ML {
+		if p.Name == "" {
+			return fmt.Errorf("ml[%d].name is required", i)
+		}
+		if p.Type != "model" && p.Type != "training" {
+			return fmt.Errorf("ml[%d].type must be one of: model, training", i)
+		}
+		if p.Source.Type != "mlflow" {
+			return fmt.Errorf("ml[%d].source.type must be: mlflow", i)
+		}
+		if p.Source.URL == "" {
+			return fmt.Errorf("ml[%d].source.url is required", i)
+		}
+		if p.Type == "model" {
+			if len(p.Models) == 0 {
+				return fmt.Errorf("ml[%d]: a model project must declare models", i)
+			}
+			if len(p.Experiments) > 0 {
+				return fmt.Errorf("ml[%d]: a model project must not declare experiments", i)
+			}
+			for j, m := range p.Models {
+				if m.Name == "" {
+					return fmt.Errorf("ml[%d].models[%d].name is required", i, j)
+				}
+			}
+		}
+		if p.Type == "training" {
+			if len(p.Experiments) == 0 {
+				return fmt.Errorf("ml[%d]: a training project must declare experiments", i)
+			}
+			if len(p.Models) > 0 {
+				return fmt.Errorf("ml[%d]: a training project must not declare models", i)
+			}
+			for j, e := range p.Experiments {
+				if e.Name == "" {
+					return fmt.Errorf("ml[%d].experiments[%d].name is required", i, j)
+				}
 			}
 		}
 	}
