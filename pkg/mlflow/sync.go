@@ -28,7 +28,12 @@ type ModelPayload struct {
 }
 
 func BuildTraining(ctx context.Context, client *Client, project config.MLProjectRef) (*TrainingPayload, error) {
-	payload := &TrainingPayload{}
+	payload := &TrainingPayload{
+		Experiments: []gateway.MLExperimentItem{},
+		Datasets:    []gateway.MLDatasetItem{},
+		Runs:        []gateway.MLRunItem{},
+		Artifacts:   []gateway.MLArtifactItem{},
+	}
 	datasetSeen := map[string]bool{}
 
 	for _, ref := range project.Experiments {
@@ -84,7 +89,11 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 }
 
 func BuildModels(ctx context.Context, client *Client, project config.MLProjectRef) (*ModelPayload, error) {
-	payload := &ModelPayload{}
+	payload := &ModelPayload{
+		Models:           []gateway.MLModelItem{},
+		Versions:         []gateway.MLVersionItem{},
+		ModelsProduction: []gateway.MLModelItem{},
+	}
 
 	for _, ref := range project.Models {
 		model, err := client.GetRegisteredModel(ctx, ref.Name)
