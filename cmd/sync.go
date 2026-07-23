@@ -759,11 +759,12 @@ func runSync(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
 
 			projectItem := gateway.MLProjectItem{
-				Name:       project.Name,
-				Type:       project.Type,
-				SourceType: project.Source.Type,
-				SourceURL:  project.Source.URL,
-				Team:       project.Ownership.Team,
+				Name:        project.Name,
+				Type:        project.Type,
+				Description: project.Description,
+				SourceType:  project.Source.Type,
+				SourceURL:   project.Source.URL,
+				Team:        project.Ownership.Team,
 			}
 
 			mlflowToken := project.Source.Token

@@ -91,18 +91,20 @@ testPacks:
 
 ml:
   - name: Facebook
+    description: Facebook ML models for user behavior prediction.
     type: model
     ownership:
       team: uigraph
       email: team@uigraph.com
     source:
-      type: mlflow
+      type: mlflow 
       url: http://localhost:5000
     models:
       - name: Saba
         description: Predicts user behavior based on historical data.
 
   - name: Facebook Training
+    description: Facebook ML training experiments for user behavior prediction.
     type: training
     ownership:
       team: uigraph

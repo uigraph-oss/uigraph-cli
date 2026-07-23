@@ -26,6 +26,7 @@ type Config struct {
 type MLProjectRef struct {
 	Name        string            `yaml:"name"`
 	Type        string            `yaml:"type"`
+	Description string            `yaml:"description,omitempty"`
 	Ownership   Ownership         `yaml:"ownership,omitempty"`
 	Source      MLSourceRef       `yaml:"source"`
 	Models      []MLModelRef      `yaml:"models,omitempty"`
