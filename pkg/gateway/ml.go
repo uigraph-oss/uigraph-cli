@@ -26,6 +26,14 @@ type MLModelItem struct {
 	Name                      string     `json:"name"`
 	Description               string     `json:"description"`
 	Tags                      []string   `json:"tags"`
+	ProblemType               string     `json:"problemType,omitempty"`
+	Domain                    string     `json:"domain,omitempty"`
+	License                   string     `json:"license,omitempty"`
+	Owners                    string     `json:"owners,omitempty"`
+	IntendedUse               string     `json:"intendedUse,omitempty"`
+	Limitations               string     `json:"limitations,omitempty"`
+	Recommendations           string     `json:"recommendations,omitempty"`
+	Considerations            string     `json:"considerations,omitempty"`
 	ProductionVersionMLflowID *string    `json:"productionVersionMlflowId"`
 	CreatedAt                 *time.Time `json:"createdAt"`
 	UpdatedAt                 *time.Time `json:"updatedAt"`

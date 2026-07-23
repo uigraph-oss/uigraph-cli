@@ -118,8 +118,20 @@ func BuildModels(ctx context.Context, client *Client, project config.MLProjectRe
 			}
 		}
 
-		payload.Models = append(payload.Models, modelToItem(model, project.Name, nil))
-		payload.ModelsProduction = append(payload.ModelsProduction, modelToItem(model, project.Name, productionVersion))
+		item := modelToItem(model, project.Name, nil)
+		item.ProblemType = ref.ProblemType
+		item.Domain = ref.Domain
+		item.License = ref.License
+		item.Owners = ref.Owners
+		item.IntendedUse = ref.IntendedUse
+		item.Limitations = ref.Limitations
+		item.Recommendations = ref.Recommendations
+		item.Considerations = ref.Considerations
+		payload.Models = append(payload.Models, item)
+
+		production := item
+		production.ProductionVersionMLflowID = productionVersion
+		payload.ModelsProduction = append(payload.ModelsProduction, production)
 	}
 
 	return payload, nil

@@ -40,12 +40,29 @@ type MLSourceRef struct {
 }
 
 type MLModelRef struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description,omitempty"`
+	Name            string `yaml:"name"`
+	Description     string `yaml:"description,omitempty"`
+	ProblemType     string `yaml:"problemType,omitempty"`
+	Domain          string `yaml:"domain,omitempty"`
+	License         string `yaml:"license,omitempty"`
+	Owners          string `yaml:"owners,omitempty"`
+	IntendedUse     string `yaml:"intendedUse,omitempty"`
+	Limitations     string `yaml:"limitations,omitempty"`
+	Recommendations string `yaml:"recommendations,omitempty"`
+	Considerations  string `yaml:"considerations,omitempty"`
 }
 
 type MLExperimentRef struct {
 	Name string `yaml:"name"`
+}
+
+var validProblemType = map[string]bool{
+	"classification": true,
+	"regression":     true,
+	"ranking":        true,
+	"generation":     true,
+	"embedding":      true,
+	"other":          true,
 }
 
 type MapRef struct {
@@ -560,6 +577,9 @@ func (c *Config) Validate() error {
 			for j, m := range p.Models {
 				if m.Name == "" {
 					return fmt.Errorf("ml[%d].models[%d].name is required", i, j)
+				}
+				if m.ProblemType != "" && !validProblemType[m.ProblemType] {
+					return fmt.Errorf("ml[%d].models[%d].problemType must be one of: classification, regression, ranking, generation, embedding, other", i, j)
 				}
 			}
 		}
