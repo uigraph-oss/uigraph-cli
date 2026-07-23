@@ -83,6 +83,7 @@ type MLArtifactItem struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
 	URI         string `json:"uri"`
+	DownloadURI string `json:"downloadUri"`
 	Size        string `json:"size"`
 	Format      string `json:"format"`
 }

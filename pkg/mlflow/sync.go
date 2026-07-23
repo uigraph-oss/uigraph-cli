@@ -75,12 +75,32 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 				payload.Series = append(payload.Series, RunSeries{RunMLflowID: run.Info.RunID, Points: points})
 			}
 
-			artifacts, err := client.Artifacts(ctx, run.Info.RunID)
-			if err != nil {
-				return nil, fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
+			var modelIDs []string
+			if run.Outputs != nil {
+				for _, out := range run.Outputs.ModelOutputs {
+					if out.ModelID != "" {
+						modelIDs = append(modelIDs, out.ModelID)
+					}
+				}
 			}
-			for _, f := range artifacts {
-				payload.Artifacts = append(payload.Artifacts, artifactToItem(run.Info.RunID, f))
+			if len(modelIDs) > 0 {
+				for _, modelID := range modelIDs {
+					artifacts, err := client.LoggedModelArtifacts(ctx, modelID)
+					if err != nil {
+						return nil, fmt.Errorf("run %q logged model %q artifacts: %w", run.Info.RunID, modelID, err)
+					}
+					for _, f := range artifacts {
+						payload.Artifacts = append(payload.Artifacts, loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f))
+					}
+				}
+			} else {
+				artifacts, err := client.Artifacts(ctx, run.Info.RunID)
+				if err != nil {
+					return nil, fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
+				}
+				for _, f := range artifacts {
+					payload.Artifacts = append(payload.Artifacts, artifactToItem(client.baseURL, run.Info.RunID, f))
+				}
 			}
 		}
 	}

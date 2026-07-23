@@ -3,6 +3,7 @@ package mlflow
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -268,17 +269,47 @@ func versionToItem(v ModelVersion) gateway.MLVersionItem {
 	}
 }
 
-func artifactToItem(runID string, f FileInfo) gateway.MLArtifactItem {
+func artifactToItem(baseURL, runID string, f FileInfo) gateway.MLArtifactItem {
 	name := f.Path
 	if idx := strings.LastIndex(f.Path, "/"); idx >= 0 {
 		name = f.Path[idx+1:]
 	}
+	downloadURI := fmt.Sprintf(
+		"%s/get-artifact?path=%s&run_id=%s",
+		strings.TrimRight(baseURL, "/"),
+		url.QueryEscape(f.Path),
+		url.QueryEscape(runID),
+	)
 	return gateway.MLArtifactItem{
 		MLflowID:    fmt.Sprintf("%s/%s", runID, f.Path),
 		RunMLflowID: runID,
 		Name:        name,
 		Type:        artifactType(name),
 		URI:         f.Path,
+		DownloadURI: downloadURI,
+		Size:        humanSize(f.FileSize),
+		Format:      extension(name),
+	}
+}
+
+func loggedModelArtifactToItem(baseURL, runID, modelID string, f FileInfo) gateway.MLArtifactItem {
+	name := f.Path
+	if idx := strings.LastIndex(f.Path, "/"); idx >= 0 {
+		name = f.Path[idx+1:]
+	}
+	downloadURI := fmt.Sprintf(
+		"%s/ajax-api/2.0/mlflow/logged-models/%s/artifacts/files?artifact_file_path=%s",
+		strings.TrimRight(baseURL, "/"),
+		modelID,
+		url.QueryEscape(f.Path),
+	)
+	return gateway.MLArtifactItem{
+		MLflowID:    fmt.Sprintf("%s/%s/%s", runID, modelID, f.Path),
+		RunMLflowID: runID,
+		Name:        name,
+		Type:        artifactType(name),
+		URI:         fmt.Sprintf("%s/%s", modelID, f.Path),
+		DownloadURI: downloadURI,
 		Size:        humanSize(f.FileSize),
 		Format:      extension(name),
 	}

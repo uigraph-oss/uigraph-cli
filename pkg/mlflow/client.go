@@ -81,10 +81,19 @@ type RunData struct {
 	Tags    []KeyValue `json:"tags"`
 }
 
+type ModelOutput struct {
+	ModelID string `json:"model_id"`
+}
+
+type RunOutputs struct {
+	ModelOutputs []ModelOutput `json:"model_outputs"`
+}
+
 type Run struct {
-	Info   RunInfo    `json:"info"`
-	Data   RunData    `json:"data"`
-	Inputs *RunInputs `json:"inputs"`
+	Info    RunInfo     `json:"info"`
+	Data    RunData     `json:"data"`
+	Inputs  *RunInputs  `json:"inputs"`
+	Outputs *RunOutputs `json:"outputs"`
 }
 
 type FileInfo struct {
@@ -245,6 +254,40 @@ func (c *Client) artifactsRecursive(ctx context.Context, runID, path string) ([]
 	for _, item := range out.Files {
 		if item.IsDir {
 			nested, err := c.artifactsRecursive(ctx, runID, item.Path)
+			if err != nil {
+				return nil, err
+			}
+			files = append(files, nested...)
+		} else {
+			files = append(files, item)
+		}
+	}
+	return files, nil
+}
+
+func (c *Client) LoggedModelArtifacts(ctx context.Context, modelID string) ([]FileInfo, error) {
+	return c.loggedModelArtifactsRecursive(ctx, modelID, "")
+}
+
+func (c *Client) loggedModelArtifactsRecursive(ctx context.Context, modelID, path string) ([]FileInfo, error) {
+	q := url.Values{}
+	if path != "" {
+		q.Set("artifact_directory_path", path)
+	}
+	body, err := c.get(ctx, "logged-models/"+modelID+"/artifacts/directories", q)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Files []FileInfo `json:"files"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("failed to parse logged model artifacts: %w", err)
+	}
+	var files []FileInfo
+	for _, item := range out.Files {
+		if item.IsDir {
+			nested, err := c.loggedModelArtifactsRecursive(ctx, modelID, item.Path)
 			if err != nil {
 				return nil, err
 			}
