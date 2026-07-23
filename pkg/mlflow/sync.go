@@ -122,7 +122,6 @@ func BuildModels(ctx context.Context, client *Client, project config.MLProjectRe
 		item.ProblemType = ref.ProblemType
 		item.Domain = ref.Domain
 		item.License = ref.License
-		item.Owners = ref.Owners
 		item.IntendedUse = ref.IntendedUse
 		item.Limitations = ref.Limitations
 		item.Recommendations = ref.Recommendations

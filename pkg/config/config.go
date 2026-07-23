@@ -45,7 +45,6 @@ type MLModelRef struct {
 	ProblemType     string `yaml:"problemType,omitempty"`
 	Domain          string `yaml:"domain,omitempty"`
 	License         string `yaml:"license,omitempty"`
-	Owners          string `yaml:"owners,omitempty"`
 	IntendedUse     string `yaml:"intendedUse,omitempty"`
 	Limitations     string `yaml:"limitations,omitempty"`
 	Recommendations string `yaml:"recommendations,omitempty"`

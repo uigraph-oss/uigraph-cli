@@ -29,7 +29,6 @@ type MLModelItem struct {
 	ProblemType               string     `json:"problemType,omitempty"`
 	Domain                    string     `json:"domain,omitempty"`
 	License                   string     `json:"license,omitempty"`
-	Owners                    string     `json:"owners,omitempty"`
 	IntendedUse               string     `json:"intendedUse,omitempty"`
 	Limitations               string     `json:"limitations,omitempty"`
 	Recommendations           string     `json:"recommendations,omitempty"`
