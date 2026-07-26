@@ -145,6 +145,21 @@ func inputContext(di DatasetInput) string {
 	return "training"
 }
 
+func experimentTags(tags []KeyValue) []string {
+	out := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.HasPrefix(tag.Key, "mlflow.") {
+			continue
+		}
+		if tag.Value == "" {
+			out = append(out, tag.Key)
+			continue
+		}
+		out = append(out, fmt.Sprintf("%s: %s", tag.Key, tag.Value))
+	}
+	return out
+}
+
 func experimentToItem(exp *Experiment, projectName string) gateway.MLExperimentItem {
 	status, ok := experimentStatus[exp.LifecycleStage]
 	if !ok {
@@ -156,6 +171,7 @@ func experimentToItem(exp *Experiment, projectName string) gateway.MLExperimentI
 		Name:        exp.Name,
 		Description: tagValue(exp.Tags, "mlflow.note.content"),
 		Status:      status,
+		Tags:        experimentTags(exp.Tags),
 		StartedAt:   iso(exp.CreationTime),
 	}
 }

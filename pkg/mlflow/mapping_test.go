@@ -87,3 +87,29 @@ func TestRunToItem(t *testing.T) {
 		t.Errorf("Parameters[lr] = %v, want 0.01", item.Parameters["lr"])
 	}
 }
+
+func TestExperimentToItem(t *testing.T) {
+	exp := Experiment{
+		ExperimentID:   "exp-1",
+		Name:           "Anomaly detection - fraud",
+		LifecycleStage: "active",
+		Tags: []KeyValue{
+			{Key: "mlflow.note.content", Value: "Fraud detection sweep"},
+			{Key: "team", Value: "search"},
+			{Key: "baseline"},
+		},
+	}
+	item := experimentToItem(&exp, "Training Project")
+	if item.Description != "Fraud detection sweep" {
+		t.Errorf("Description = %q, want Fraud detection sweep", item.Description)
+	}
+	if len(item.Tags) != 2 {
+		t.Fatalf("Tags = %v, want 2 entries", item.Tags)
+	}
+	if item.Tags[0] != "team: search" {
+		t.Errorf("Tags[0] = %q, want team: search", item.Tags[0])
+	}
+	if item.Tags[1] != "baseline" {
+		t.Errorf("Tags[1] = %q, want baseline", item.Tags[1])
+	}
+}
