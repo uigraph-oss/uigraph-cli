@@ -815,7 +815,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Model Project (%s) ===\n", project.Name)
-					fmt.Printf("  Models: %d, Versions: %d\n", len(mp.Models), len(mp.Versions))
+					fmt.Printf("  Models: %d, Versions: %d, Evaluations: %d\n", len(mp.Models), len(mp.Versions), len(mp.Evaluations))
 					data, _ := json.MarshalIndent(mp.ModelsProduction, "", "  ")
 					fmt.Println(string(data))
 				} else {
@@ -831,7 +831,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 					if _, err := client.SyncMLModels(ctx, mp.ModelsProduction); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML models (production) for %q", project.Name), err)
 					}
-					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions)\n", project.Name, len(mp.Models), len(mp.Versions))
+					if _, err := client.SyncMLEvaluations(ctx, mp.Evaluations); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML evaluations for %q", project.Name), err)
+					}
+					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d evaluations)\n", project.Name, len(mp.Models), len(mp.Versions), len(mp.Evaluations))
 				}
 			}
 		}

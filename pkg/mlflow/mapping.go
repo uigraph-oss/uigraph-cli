@@ -219,6 +219,107 @@ func runToItem(run Run) gateway.MLRunItem {
 	}
 }
 
+func evaluatedModelIDs(run Run) []string {
+	raw := tagValue(run.Data.Tags, "mlflow.datasets")
+	if raw == "" {
+		return nil
+	}
+	var entries []struct {
+		Model string `json:"model"`
+	}
+	if err := json.Unmarshal([]byte(raw), &entries); err != nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	var ids []string
+	for _, e := range entries {
+		if e.Model == "" || seen[e.Model] {
+			continue
+		}
+		seen[e.Model] = true
+		ids = append(ids, e.Model)
+	}
+	return ids
+}
+
+func producedModelIDs(run Run) map[string]bool {
+	produced := map[string]bool{}
+	if run.Outputs == nil {
+		return produced
+	}
+	for _, out := range run.Outputs.ModelOutputs {
+		if out.ModelID != "" {
+			produced[out.ModelID] = true
+		}
+	}
+	return produced
+}
+
+func IsEvaluationRun(run Run) bool {
+	produced := producedModelIDs(run)
+	for _, id := range evaluatedModelIDs(run) {
+		if !produced[id] {
+			return true
+		}
+	}
+	return false
+}
+
+func loggedModelIDFromSource(source string) string {
+	const prefix = "models:/"
+	if !strings.HasPrefix(source, prefix) {
+		return ""
+	}
+	id := strings.TrimPrefix(source, prefix)
+	if idx := strings.Index(id, "/"); idx >= 0 {
+		id = id[:idx]
+	}
+	return id
+}
+
+func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway.MLEvaluationItem {
+	name := tagValue(run.Data.Tags, "mlflow.runName")
+	if name == "" {
+		name = run.Info.RunID
+	}
+	parameters := map[string]any{}
+	for _, p := range run.Data.Params {
+		parameters[p.Key] = p.Value
+	}
+	for _, t := range run.Data.Tags {
+		if strings.HasPrefix(t.Key, "mlflow.") {
+			continue
+		}
+		parameters[t.Key] = t.Value
+	}
+	values := map[string]any{}
+	var datasetMLflowID *string
+	for _, m := range metrics {
+		values[m.Key] = m.Value
+		if m.DatasetDigest != "" && datasetMLflowID == nil {
+			digest := m.DatasetDigest
+			datasetMLflowID = &digest
+		}
+	}
+	evaluatedAt := iso(run.Info.EndTime)
+	if evaluatedAt == nil {
+		evaluatedAt = iso(run.Info.StartTime)
+	}
+	return gateway.MLEvaluationItem{
+		MLflowID:        fmt.Sprintf("%s/%s", versionMLflowID, run.Info.RunID),
+		VersionMLflowID: versionMLflowID,
+		DatasetMLflowID: datasetMLflowID,
+		Name:            name,
+		Type:            "Offline Benchmark",
+		Description:     tagValue(run.Data.Tags, "mlflow.note.content"),
+		Summary:         "",
+		EvaluatedAt:     evaluatedAt,
+		Evaluator:       tagValue(run.Data.Tags, "mlflow.user"),
+		Parameters:      parameters,
+		Metrics:         values,
+	}
+}
+
 func modelToItem(model *RegisteredModel, projectName string, productionVersionMLflowID *string) gateway.MLModelItem {
 	tags := make([]string, 0, len(model.Tags))
 	for _, tag := range model.Tags {

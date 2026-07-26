@@ -42,10 +42,14 @@ type Experiment struct {
 }
 
 type Metric struct {
-	Key       string  `json:"key"`
-	Value     float64 `json:"value"`
-	Timestamp *int64  `json:"timestamp"`
-	Step      int64   `json:"step"`
+	Key           string  `json:"key"`
+	Value         float64 `json:"value"`
+	Timestamp     *int64  `json:"timestamp"`
+	Step          int64   `json:"step"`
+	ModelID       string  `json:"model_id"`
+	RunID         string  `json:"run_id"`
+	DatasetName   string  `json:"dataset_name"`
+	DatasetDigest string  `json:"dataset_digest"`
 }
 
 type Dataset struct {
@@ -117,7 +121,26 @@ type ModelVersion struct {
 	CurrentStage      string `json:"current_stage"`
 	Description       string `json:"description"`
 	RunID             string `json:"run_id"`
+	Source            string `json:"source"`
 	Status            string `json:"status"`
+}
+
+type LoggedModelInfo struct {
+	ModelID      string     `json:"model_id"`
+	ExperimentID string     `json:"experiment_id"`
+	Name         string     `json:"name"`
+	SourceRunID  string     `json:"source_run_id"`
+	Tags         []KeyValue `json:"tags"`
+}
+
+type LoggedModelData struct {
+	Params  []KeyValue `json:"params"`
+	Metrics []Metric   `json:"metrics"`
+}
+
+type LoggedModel struct {
+	Info LoggedModelInfo `json:"info"`
+	Data LoggedModelData `json:"data"`
 }
 
 func (c *Client) get(ctx context.Context, path string, query url.Values) ([]byte, error) {
@@ -213,6 +236,35 @@ func (c *Client) SearchRuns(ctx context.Context, experimentID string) ([]Run, er
 	return runs, nil
 }
 
+func (c *Client) GetRun(ctx context.Context, runID string) (*Run, error) {
+	q := url.Values{}
+	q.Set("run_id", runID)
+	body, err := c.get(ctx, "runs/get", q)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Run Run `json:"run"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("failed to parse run: %w", err)
+	}
+	return &out.Run, nil
+}
+
+func (c *Client) GetLoggedModel(ctx context.Context, modelID string) (*LoggedModel, error) {
+	body, err := c.get(ctx, fmt.Sprintf("logged-models/%s", url.PathEscape(modelID)), nil)
+	if err != nil {
+		return nil, err
+	}
+	var out struct {
+		Model LoggedModel `json:"model"`
+	}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("failed to parse logged model: %w", err)
+	}
+	return &out.Model, nil
+}
 
 func (c *Client) Artifacts(ctx context.Context, runID string) ([]FileInfo, error) {
 	return c.artifactsRecursive(ctx, runID, "")

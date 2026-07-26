@@ -99,6 +99,20 @@ type MLDatasetItem struct {
 	Tags               map[string]string `json:"tags"`
 }
 
+type MLEvaluationItem struct {
+	MLflowID        string         `json:"mlflowId"`
+	VersionMLflowID string         `json:"versionMlflowId"`
+	DatasetMLflowID *string        `json:"datasetMlflowId"`
+	Name            string         `json:"name"`
+	Type            string         `json:"type"`
+	Description     string         `json:"description"`
+	Summary         string         `json:"summary"`
+	EvaluatedAt     *time.Time     `json:"evaluatedAt"`
+	Evaluator       string         `json:"evaluator"`
+	Parameters      map[string]any `json:"parameters"`
+	Metrics         map[string]any `json:"metrics"`
+}
+
 type mlSyncResponse struct {
 	Synced int `json:"synced"`
 }
@@ -166,4 +180,8 @@ func (c *Client) SyncMLArtifacts(ctx context.Context, items []MLArtifactItem) (i
 
 func (c *Client) SyncMLDatasets(ctx context.Context, items []MLDatasetItem) (int, error) {
 	return c.postMLSync(ctx, "/v1/sync/ml/datasets", items)
+}
+
+func (c *Client) SyncMLEvaluations(ctx context.Context, items []MLEvaluationItem) (int, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/evaluations", items)
 }

@@ -113,3 +113,103 @@ func TestExperimentToItem(t *testing.T) {
 		t.Errorf("Tags[1] = %q, want baseline", item.Tags[1])
 	}
 }
+
+func TestIsEvaluationRun(t *testing.T) {
+	evaluation := Run{
+		Info: RunInfo{RunID: "eval-1"},
+		Data: RunData{Tags: []KeyValue{
+			{Key: "mlflow.datasets", Value: `[{"name":"dataset","hash":"abc","model":"m-123"}]`},
+		}},
+	}
+	if !IsEvaluationRun(evaluation) {
+		t.Error("IsEvaluationRun(evaluation run) = false, want true")
+	}
+
+	training := Run{
+		Info:    RunInfo{RunID: "train-1"},
+		Data:    RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "nosy-bee-242"}}},
+		Outputs: &RunOutputs{ModelOutputs: []ModelOutput{{ModelID: "m-123"}}},
+	}
+	if IsEvaluationRun(training) {
+		t.Error("IsEvaluationRun(training run) = true, want false")
+	}
+
+	selfEvaluating := Run{
+		Info: RunInfo{RunID: "train-2"},
+		Data: RunData{Tags: []KeyValue{
+			{Key: "mlflow.datasets", Value: `[{"name":"dataset","hash":"abc","model":"m-456"}]`},
+		}},
+		Outputs: &RunOutputs{ModelOutputs: []ModelOutput{{ModelID: "m-456"}}},
+	}
+	if IsEvaluationRun(selfEvaluating) {
+		t.Error("IsEvaluationRun(run evaluating the model it produced) = true, want false")
+	}
+
+	plain := Run{Info: RunInfo{RunID: "train-3"}}
+	if IsEvaluationRun(plain) {
+		t.Error("IsEvaluationRun(run without datasets tag) = true, want false")
+	}
+}
+
+func TestLoggedModelIDFromSource(t *testing.T) {
+	if got := loggedModelIDFromSource("models:/m-d1cbd09ebea3"); got != "m-d1cbd09ebea3" {
+		t.Errorf("loggedModelIDFromSource() = %q, want m-d1cbd09ebea3", got)
+	}
+	if got := loggedModelIDFromSource("models:/m-d1cbd09ebea3/artifacts"); got != "m-d1cbd09ebea3" {
+		t.Errorf("loggedModelIDFromSource() = %q, want m-d1cbd09ebea3", got)
+	}
+	if got := loggedModelIDFromSource("s3://bucket/path"); got != "" {
+		t.Errorf("loggedModelIDFromSource(non-model source) = %q, want empty", got)
+	}
+}
+
+func TestEvaluationToItem(t *testing.T) {
+	end := int64(1784812074532)
+	run := Run{
+		Info: RunInfo{RunID: "47e63bc7", EndTime: &end},
+		Data: RunData{
+			Tags: []KeyValue{
+				{Key: "mlflow.runName", Value: "eval-Saba-v2-s1000"},
+				{Key: "mlflow.user", Value: "sayad"},
+				{Key: "eval_seed", Value: "1000"},
+			},
+		},
+	}
+	metrics := []Metric{
+		{Key: "r2_score", Value: -0.09, RunID: "47e63bc7", DatasetName: "dataset", DatasetDigest: "2c55db12"},
+		{Key: "r2_score", Value: -0.09, RunID: "47e63bc7", DatasetName: "dataset", DatasetDigest: "2c55db12"},
+		{Key: "max_error", Value: 0.525, RunID: "47e63bc7", DatasetName: "dataset", DatasetDigest: "2c55db12"},
+	}
+
+	item := evaluationToItem(run, "Saba/2", metrics)
+	if item.MLflowID != "Saba/2/47e63bc7" {
+		t.Errorf("MLflowID = %q, want Saba/2/47e63bc7", item.MLflowID)
+	}
+	if item.Type != "Offline Benchmark" {
+		t.Errorf("Type = %q, want Offline Benchmark", item.Type)
+	}
+	if item.VersionMLflowID != "Saba/2" {
+		t.Errorf("VersionMLflowID = %q, want Saba/2", item.VersionMLflowID)
+	}
+	if item.Name != "eval-Saba-v2-s1000" {
+		t.Errorf("Name = %q, want eval-Saba-v2-s1000", item.Name)
+	}
+	if item.Evaluator != "sayad" {
+		t.Errorf("Evaluator = %q, want sayad", item.Evaluator)
+	}
+	if len(item.Metrics) != 2 {
+		t.Errorf("Metrics = %v, want 2 deduplicated entries", item.Metrics)
+	}
+	if item.Parameters["eval_seed"] != "1000" {
+		t.Errorf("Parameters[eval_seed] = %v, want 1000", item.Parameters["eval_seed"])
+	}
+	if _, ok := item.Parameters["mlflow.user"]; ok {
+		t.Error("Parameters contains mlflow.user, want mlflow.* tags excluded")
+	}
+	if item.DatasetMLflowID == nil || *item.DatasetMLflowID != "2c55db12" {
+		t.Errorf("DatasetMLflowID = %v, want 2c55db12", item.DatasetMLflowID)
+	}
+	if item.EvaluatedAt == nil {
+		t.Error("EvaluatedAt = nil, want run end time")
+	}
+}
