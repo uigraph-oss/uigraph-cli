@@ -30,24 +30,15 @@ func iso(ms *int64) *time.Time {
 	return &t
 }
 
-func duration(startMs, endMs *int64) string {
+func duration(startMs, endMs *int64) int64 {
 	if startMs == nil || endMs == nil {
-		return ""
+		return 0
 	}
-	seconds := (*endMs - *startMs) / 1000
-	if seconds < 0 {
-		seconds = 0
+	ms := *endMs - *startMs
+	if ms < 0 {
+		return 0
 	}
-	hours := seconds / 3600
-	minutes := (seconds % 3600) / 60
-	secs := seconds % 60
-	if hours > 0 {
-		return fmt.Sprintf("%dh %dm", hours, minutes)
-	}
-	if minutes > 0 {
-		return fmt.Sprintf("%dm %ds", minutes, secs)
-	}
-	return fmt.Sprintf("%ds", secs)
+	return ms
 }
 
 func extension(name string) string {
