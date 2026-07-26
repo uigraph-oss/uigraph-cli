@@ -8,16 +8,10 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 )
 
-type RunSeries struct {
-	RunMLflowID string
-	Points      []gateway.MLSeriesPoint
-}
-
 type TrainingPayload struct {
 	Experiments []gateway.MLExperimentItem
 	Datasets    []gateway.MLDatasetItem
 	Runs        []gateway.MLRunItem
-	Series      []RunSeries
 	Artifacts   []gateway.MLArtifactItem
 }
 
@@ -61,18 +55,6 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 					datasetSeen[key] = true
 					payload.Datasets = append(payload.Datasets, item)
 				}
-			}
-
-			var points []gateway.MLSeriesPoint
-			for _, metric := range run.Data.Metrics {
-				history, err := client.MetricHistory(ctx, run.Info.RunID, metric.Key)
-				if err != nil {
-					return nil, fmt.Errorf("run %q metric %q history: %w", run.Info.RunID, metric.Key, err)
-				}
-				points = append(points, metricHistoryToPoints(history)...)
-			}
-			if len(points) > 0 {
-				payload.Series = append(payload.Series, RunSeries{RunMLflowID: run.Info.RunID, Points: points})
 			}
 
 			var modelIDs []string

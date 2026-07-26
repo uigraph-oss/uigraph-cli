@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -68,13 +67,6 @@ type MLRunItem struct {
 	Notes              string         `json:"notes"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
-}
-
-type MLSeriesPoint struct {
-	Key   string     `json:"key"`
-	Step  int64      `json:"step"`
-	Value float64    `json:"value"`
-	TS    *time.Time `json:"ts"`
 }
 
 type MLArtifactItem struct {
@@ -166,10 +158,6 @@ func (c *Client) SyncMLExperiments(ctx context.Context, items []MLExperimentItem
 
 func (c *Client) SyncMLRuns(ctx context.Context, items []MLRunItem) (int, error) {
 	return c.postMLSync(ctx, "/v1/sync/ml/runs", items)
-}
-
-func (c *Client) SyncMLRunSeries(ctx context.Context, runMLflowID string, items []MLSeriesPoint) (int, error) {
-	return c.postMLSync(ctx, fmt.Sprintf("/v1/sync/ml/runs/%s/series", url.PathEscape(runMLflowID)), items)
 }
 
 func (c *Client) SyncMLArtifacts(ctx context.Context, items []MLArtifactItem) (int, error) {

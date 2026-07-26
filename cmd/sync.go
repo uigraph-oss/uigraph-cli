@@ -782,8 +782,8 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
-					fmt.Printf("  Experiments: %d, Runs: %d, Datasets: %d, Artifacts: %d, Metric series: %d\n",
-						len(tp.Experiments), len(tp.Runs), len(tp.Datasets), len(tp.Artifacts), len(tp.Series))
+					fmt.Printf("  Experiments: %d, Runs: %d, Datasets: %d, Artifacts: %d\n",
+						len(tp.Experiments), len(tp.Runs), len(tp.Datasets), len(tp.Artifacts))
 					data, _ := json.MarshalIndent(tp.Experiments, "", "  ")
 					fmt.Println(string(data))
 				} else {
@@ -798,11 +798,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 					}
 					if _, err := client.SyncMLRuns(ctx, tp.Runs); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML runs for %q", project.Name), err)
-					}
-					for _, s := range tp.Series {
-						if _, err := client.SyncMLRunSeries(ctx, s.RunMLflowID, s.Points); err != nil {
-							exitGatewayErrorErr(fmt.Sprintf("sync ML metric series for run %q", s.RunMLflowID), err)
-						}
 					}
 					if _, err := client.SyncMLArtifacts(ctx, tp.Artifacts); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML artifacts for %q", project.Name), err)

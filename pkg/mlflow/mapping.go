@@ -219,19 +219,6 @@ func runToItem(run Run) gateway.MLRunItem {
 	}
 }
 
-func metricHistoryToPoints(history []Metric) []gateway.MLSeriesPoint {
-	points := make([]gateway.MLSeriesPoint, 0, len(history))
-	for _, m := range history {
-		points = append(points, gateway.MLSeriesPoint{
-			Key:   m.Key,
-			Step:  m.Step,
-			Value: m.Value,
-			TS:    iso(m.Timestamp),
-		})
-	}
-	return points
-}
-
 func modelToItem(model *RegisteredModel, projectName string, productionVersionMLflowID *string) gateway.MLModelItem {
 	tags := make([]string, 0, len(model.Tags))
 	for _, tag := range model.Tags {

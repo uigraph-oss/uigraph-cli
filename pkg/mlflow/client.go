@@ -213,22 +213,6 @@ func (c *Client) SearchRuns(ctx context.Context, experimentID string) ([]Run, er
 	return runs, nil
 }
 
-func (c *Client) MetricHistory(ctx context.Context, runID, key string) ([]Metric, error) {
-	q := url.Values{}
-	q.Set("run_id", runID)
-	q.Set("metric_key", key)
-	body, err := c.get(ctx, "metrics/get-history", q)
-	if err != nil {
-		return nil, err
-	}
-	var out struct {
-		Metrics []Metric `json:"metrics"`
-	}
-	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, fmt.Errorf("failed to parse metric history: %w", err)
-	}
-	return out.Metrics, nil
-}
 
 func (c *Client) Artifacts(ctx context.Context, runID string) ([]FileInfo, error) {
 	return c.artifactsRecursive(ctx, runID, "")

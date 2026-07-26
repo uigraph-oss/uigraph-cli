@@ -54,7 +54,7 @@ func TestSyncMLProjects_Success(t *testing.T) {
 	}
 }
 
-func TestSyncMLRunSeries_Path(t *testing.T) {
+func TestSyncMLRuns_Path(t *testing.T) {
 	var gotPath, gotToken string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -67,15 +67,15 @@ func TestSyncMLRunSeries_Path(t *testing.T) {
 
 	client := NewClient(server.URL, "secret-token")
 
-	synced, err := client.SyncMLRunSeries(context.Background(), "run-abc", []MLSeriesPoint{
-		{Key: "loss", Step: 0, Value: 1.5},
-		{Key: "loss", Step: 1, Value: 1.2},
+	synced, err := client.SyncMLRuns(context.Background(), []MLRunItem{
+		{MLflowID: "run-abc", ExperimentMLflowID: "exp-1", Name: "run-abc", Metrics: map[string]any{"loss": 1.2}},
+		{MLflowID: "run-def", ExperimentMLflowID: "exp-1", Name: "run-def", Metrics: map[string]any{"loss": 1.5}},
 	})
 	if err != nil {
-		t.Fatalf("SyncMLRunSeries() error = %v", err)
+		t.Fatalf("SyncMLRuns() error = %v", err)
 	}
-	if gotPath != "/v1/sync/ml/runs/run-abc/series" {
-		t.Errorf("path = %s, want /v1/sync/ml/runs/run-abc/series", gotPath)
+	if gotPath != "/v1/sync/ml/runs" {
+		t.Errorf("path = %s, want /v1/sync/ml/runs", gotPath)
 	}
 	if gotToken != "secret-token" {
 		t.Errorf("X-API-Token = %s, want secret-token", gotToken)
