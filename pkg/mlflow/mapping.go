@@ -30,17 +30,6 @@ func iso(ms *int64) *time.Time {
 	return &t
 }
 
-func duration(startMs, endMs *int64) int64 {
-	if startMs == nil || endMs == nil {
-		return 0
-	}
-	ms := *endMs - *startMs
-	if ms < 0 {
-		return 0
-	}
-	return ms
-}
-
 func extension(name string) string {
 	if !strings.Contains(name, ".") {
 		return ""
@@ -208,7 +197,6 @@ func runToItem(run Run) gateway.MLRunItem {
 		Status:             status,
 		StartedAt:          iso(run.Info.StartTime),
 		EndedAt:            iso(run.Info.EndTime),
-		Duration:           duration(run.Info.StartTime, run.Info.EndTime),
 		Notes:              tagValue(run.Data.Tags, "mlflow.note.content"),
 		Parameters:         parameters,
 		Metrics:            metrics,

@@ -4,25 +4,6 @@ import "testing"
 
 func ptr[T any](v T) *T { return &v }
 
-func TestDuration(t *testing.T) {
-	tests := []struct {
-		start, end *int64
-		want       int64
-	}{
-		{ptr(int64(0)), ptr(int64(3661000)), 3661000},
-		{ptr(int64(0)), ptr(int64(303000)), 303000},
-		{ptr(int64(0)), ptr(int64(3000)), 3000},
-		{ptr(int64(1000)), ptr(int64(0)), 0},
-		{nil, ptr(int64(1000)), 0},
-		{ptr(int64(1000)), nil, 0},
-	}
-	for _, tt := range tests {
-		if got := duration(tt.start, tt.end); got != tt.want {
-			t.Errorf("duration(%v,%v) = %d, want %d", tt.start, tt.end, got, tt.want)
-		}
-	}
-}
-
 func TestHumanSize(t *testing.T) {
 	tests := []struct {
 		size *int64
@@ -98,9 +79,6 @@ func TestRunToItem(t *testing.T) {
 	}
 	if item.Status != "completed" {
 		t.Errorf("Status = %q, want completed", item.Status)
-	}
-	if item.Duration != 3000 {
-		t.Errorf("Duration = %d, want 3000", item.Duration)
 	}
 	if item.Metrics["acc"] != 0.9 {
 		t.Errorf("Metrics[acc] = %v, want 0.9", item.Metrics["acc"])
