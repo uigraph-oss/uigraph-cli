@@ -755,7 +755,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if len(cfg.ML) > 0 {
 		fmt.Printf("\n🤖 Syncing %d ML %s...\n", len(cfg.ML), pluralize(len(cfg.ML), "project", "projects"))
 
+		orderedML := make([]config.MLProjectRef, 0, len(cfg.ML))
 		for _, project := range cfg.ML {
+			if project.Type == "training" {
+				orderedML = append(orderedML, project)
+			}
+		}
+		for _, project := range cfg.ML {
+			if project.Type != "training" {
+				orderedML = append(orderedML, project)
+			}
+		}
+
+		syncedExperiments := map[string]bool{}
+
+		for _, project := range orderedML {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
 
 			projectItem := gateway.MLProjectItem{
@@ -779,6 +793,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 					exitGatewayErrorErr(fmt.Sprintf("collect ML project %q from MLflow", project.Name), err)
 				}
 				totalMLExperiments += len(tp.Experiments)
+				for _, exp := range tp.Experiments {
+					syncedExperiments[project.Source.URL+"\x00"+exp.MLflowID] = true
+				}
 
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
@@ -813,9 +830,19 @@ func runSync(cmd *cobra.Command, args []string) error {
 				}
 				totalMLModels += len(mp.Models)
 
+				evaluations := make([]gateway.MLEvaluationItem, 0, len(mp.Evaluations))
+				skippedEvaluations := 0
+				for _, e := range mp.Evaluations {
+					if syncedExperiments[project.Source.URL+"\x00"+e.ExperimentMLflowID] {
+						evaluations = append(evaluations, e)
+						continue
+					}
+					skippedEvaluations++
+				}
+
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Model Project (%s) ===\n", project.Name)
-					fmt.Printf("  Models: %d, Versions: %d, Evaluations: %d\n", len(mp.Models), len(mp.Versions), len(mp.Evaluations))
+					fmt.Printf("  Models: %d, Versions: %d, Evaluations: %d (skipped %d)\n", len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
 					data, _ := json.MarshalIndent(mp.ModelsProduction, "", "  ")
 					fmt.Println(string(data))
 				} else {
@@ -831,10 +858,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 					if _, err := client.SyncMLModels(ctx, mp.ModelsProduction); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML models (production) for %q", project.Name), err)
 					}
-					if _, err := client.SyncMLEvaluations(ctx, mp.Evaluations); err != nil {
+					if _, err := client.SyncMLEvaluations(ctx, evaluations); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML evaluations for %q", project.Name), err)
 					}
-					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d evaluations)\n", project.Name, len(mp.Models), len(mp.Versions), len(mp.Evaluations))
+					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d evaluations, %d evaluations skipped)\n", project.Name, len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
 				}
 			}
 		}

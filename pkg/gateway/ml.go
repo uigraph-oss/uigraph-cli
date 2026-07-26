@@ -100,17 +100,18 @@ type MLDatasetItem struct {
 }
 
 type MLEvaluationItem struct {
-	MLflowID        string         `json:"mlflowId"`
-	VersionMLflowID string         `json:"versionMlflowId"`
-	DatasetMLflowID *string        `json:"datasetMlflowId"`
-	Name            string         `json:"name"`
-	Type            string         `json:"type"`
-	Description     string         `json:"description"`
-	Summary         string         `json:"summary"`
-	EvaluatedAt     *time.Time     `json:"evaluatedAt"`
-	Evaluator       string         `json:"evaluator"`
-	Parameters      map[string]any `json:"parameters"`
-	Metrics         map[string]any `json:"metrics"`
+	MLflowID           string         `json:"mlflowId"`
+	VersionMLflowID    string         `json:"versionMlflowId"`
+	ExperimentMLflowID string         `json:"experimentMlflowId"`
+	DatasetMLflowID    *string        `json:"datasetMlflowId"`
+	Name               string         `json:"name"`
+	Type               string         `json:"type"`
+	Description        string         `json:"description"`
+	Summary            string         `json:"summary"`
+	EvaluatedAt        *time.Time     `json:"evaluatedAt"`
+	Evaluator          string         `json:"evaluator"`
+	Parameters         map[string]any `json:"parameters"`
+	Metrics            map[string]any `json:"metrics"`
 }
 
 type mlSyncResponse struct {

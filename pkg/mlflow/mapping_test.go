@@ -166,7 +166,7 @@ func TestLoggedModelIDFromSource(t *testing.T) {
 func TestEvaluationToItem(t *testing.T) {
 	end := int64(1784812074532)
 	run := Run{
-		Info: RunInfo{RunID: "47e63bc7", EndTime: &end},
+		Info: RunInfo{RunID: "47e63bc7", ExperimentID: "813", EndTime: &end},
 		Data: RunData{
 			Tags: []KeyValue{
 				{Key: "mlflow.runName", Value: "eval-Saba-v2-s1000"},
@@ -190,6 +190,9 @@ func TestEvaluationToItem(t *testing.T) {
 	}
 	if item.VersionMLflowID != "Saba/2" {
 		t.Errorf("VersionMLflowID = %q, want Saba/2", item.VersionMLflowID)
+	}
+	if item.ExperimentMLflowID != "813" {
+		t.Errorf("ExperimentMLflowID = %q, want 813", item.ExperimentMLflowID)
 	}
 	if item.Name != "eval-Saba-v2-s1000" {
 		t.Errorf("Name = %q, want eval-Saba-v2-s1000", item.Name)

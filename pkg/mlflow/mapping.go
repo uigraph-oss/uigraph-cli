@@ -306,17 +306,18 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 		evaluatedAt = iso(run.Info.StartTime)
 	}
 	return gateway.MLEvaluationItem{
-		MLflowID:        fmt.Sprintf("%s/%s", versionMLflowID, run.Info.RunID),
-		VersionMLflowID: versionMLflowID,
-		DatasetMLflowID: datasetMLflowID,
-		Name:            name,
-		Type:            "Offline Benchmark",
-		Description:     tagValue(run.Data.Tags, "mlflow.note.content"),
-		Summary:         "",
-		EvaluatedAt:     evaluatedAt,
-		Evaluator:       tagValue(run.Data.Tags, "mlflow.user"),
-		Parameters:      parameters,
-		Metrics:         values,
+		MLflowID:           fmt.Sprintf("%s/%s", versionMLflowID, run.Info.RunID),
+		VersionMLflowID:    versionMLflowID,
+		ExperimentMLflowID: run.Info.ExperimentID,
+		DatasetMLflowID:    datasetMLflowID,
+		Name:               name,
+		Type:               "Offline Benchmark",
+		Description:        tagValue(run.Data.Tags, "mlflow.note.content"),
+		Summary:            "",
+		EvaluatedAt:        evaluatedAt,
+		Evaluator:          tagValue(run.Data.Tags, "mlflow.user"),
+		Parameters:         parameters,
+		Metrics:            values,
 	}
 }
 
