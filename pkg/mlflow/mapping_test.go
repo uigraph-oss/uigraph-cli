@@ -54,14 +54,14 @@ func TestDatasetRowCountAndSchema(t *testing.T) {
 }
 
 func TestVersionToItem(t *testing.T) {
-	item := versionToItem(ModelVersion{Name: "Saba", Version: "3", CurrentStage: "Production", RunID: "run-1"})
+	item := versionToItem(ModelVersion{Name: "Saba", Version: "3", CurrentStage: "Production", RunID: "run-1"}, "")
 	if item.MLflowID != "Saba/3" {
 		t.Errorf("MLflowID = %q, want Saba/3", item.MLflowID)
 	}
 	if item.RunMLflowID == nil || *item.RunMLflowID != "run-1" {
 		t.Errorf("RunMLflowID = %v, want run-1", item.RunMLflowID)
 	}
-	empty := versionToItem(ModelVersion{Name: "Saba", Version: "1"})
+	empty := versionToItem(ModelVersion{Name: "Saba", Version: "1"}, "")
 	if empty.RunMLflowID != nil {
 		t.Errorf("RunMLflowID = %v, want nil", empty.RunMLflowID)
 	}
@@ -76,7 +76,7 @@ func TestRunToItem(t *testing.T) {
 			Tags:    []KeyValue{{Key: "mlflow.runName", Value: "sunny-otter"}},
 		},
 	}
-	item := runToItem(run)
+	item := runToItem(run, "")
 	if item.Name != "sunny-otter" {
 		t.Errorf("Name = %q, want sunny-otter", item.Name)
 	}
@@ -184,7 +184,7 @@ func TestEvaluationToItem(t *testing.T) {
 		{Key: "max_error", Value: 0.525, RunID: "47e63bc7", DatasetName: "dataset", DatasetDigest: "2c55db12"},
 	}
 
-	item := evaluationToItem(run, "Saba/2", metrics)
+	item := evaluationToItem(run, "Saba/2", metrics, "")
 	if item.MLflowID != "Saba/2/47e63bc7" {
 		t.Errorf("MLflowID = %q, want Saba/2/47e63bc7", item.MLflowID)
 	}
@@ -230,7 +230,7 @@ func TestEvaluationToItemMissingTimestamps(t *testing.T) {
 		Data: RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "eval-Saba-v2"}}},
 	}
 
-	item := evaluationToItem(run, "Saba/2", nil)
+	item := evaluationToItem(run, "Saba/2", nil, "")
 	if item.StartedAt.Before(before) {
 		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
 	}
@@ -246,11 +246,82 @@ func TestRunToItemMissingTimestamps(t *testing.T) {
 		Data: RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "windy-otter"}}},
 	}
 
-	item := runToItem(run)
+	item := runToItem(run, "")
 	if item.StartedAt.Before(before) {
 		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
 	}
 	if item.EndedAt != nil {
 		t.Errorf("EndedAt = %v, want nil for an unfinished run", item.EndedAt)
+	}
+}
+
+func TestExperimentToItemUserTag(t *testing.T) {
+	exp := Experiment{
+		ExperimentID:   "exp-1",
+		Name:           "Anomaly detection - fraud",
+		LifecycleStage: "active",
+		Tags: []KeyValue{
+			{Key: "uigraph.user", Value: "a@b.com"},
+			{Key: "team", Value: "ml"},
+		},
+	}
+
+	item := experimentToItem(&exp, "Training Project")
+	if item.UserEmail != "a@b.com" {
+		t.Errorf("UserEmail = %q, want a@b.com", item.UserEmail)
+	}
+	if len(item.Tags) != 1 || item.Tags[0] != "team: ml" {
+		t.Errorf("Tags = %v, want [team: ml]", item.Tags)
+	}
+}
+
+func TestRunToItemUserTag(t *testing.T) {
+	tagged := Run{
+		Info: RunInfo{RunID: "run-1", ExperimentID: "exp-1", Status: "FINISHED"},
+		Data: RunData{Tags: []KeyValue{{Key: "uigraph.user", Value: "c@d.com"}}},
+	}
+	item := runToItem(tagged, "a@b.com")
+	if item.UserEmail != "c@d.com" {
+		t.Errorf("UserEmail = %q, want c@d.com", item.UserEmail)
+	}
+
+	untagged := Run{
+		Info: RunInfo{RunID: "run-2", ExperimentID: "exp-1", Status: "FINISHED"},
+		Data: RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "windy-otter"}}},
+	}
+	inherited := runToItem(untagged, "a@b.com")
+	if inherited.UserEmail != "a@b.com" {
+		t.Errorf("UserEmail = %q, want a@b.com", inherited.UserEmail)
+	}
+}
+
+func TestEvaluationToItemUserTag(t *testing.T) {
+	run := Run{
+		Info: RunInfo{RunID: "47e63bc7", ExperimentID: "813"},
+		Data: RunData{Tags: []KeyValue{{Key: "uigraph.user", Value: "e@f.com"}}},
+	}
+
+	item := evaluationToItem(run, "Saba/2", nil, "a@b.com")
+	if item.UserEmail != "e@f.com" {
+		t.Errorf("UserEmail = %q, want e@f.com", item.UserEmail)
+	}
+	if _, ok := item.Parameters["uigraph.user"]; ok {
+		t.Error("Parameters contains uigraph.user, want the reserved tag excluded")
+	}
+}
+
+func TestVersionToItemUserTag(t *testing.T) {
+	tagged := versionToItem(ModelVersion{
+		Name:    "Saba",
+		Version: "3",
+		Tags:    []KeyValue{{Key: "uigraph.user", Value: "g@h.com"}},
+	}, "a@b.com")
+	if tagged.UserEmail != "g@h.com" {
+		t.Errorf("UserEmail = %q, want g@h.com", tagged.UserEmail)
+	}
+
+	inherited := versionToItem(ModelVersion{Name: "Saba", Version: "1"}, "a@b.com")
+	if inherited.UserEmail != "a@b.com" {
+		t.Errorf("UserEmail = %q, want a@b.com", inherited.UserEmail)
 	}
 }

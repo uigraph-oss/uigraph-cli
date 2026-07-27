@@ -37,6 +37,7 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 			return nil, fmt.Errorf("experiment %q: %w", ref.Name, err)
 		}
 		payload.Experiments = append(payload.Experiments, experimentToItem(exp, project.Name))
+		experimentEmail := tagValue(exp.Tags, userTagKey)
 
 		runs, err := client.SearchRuns(ctx, exp.ExperimentID)
 		if err != nil {
@@ -47,11 +48,15 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 			if IsEvaluationRun(run) {
 				continue
 			}
-			payload.Runs = append(payload.Runs, runToItem(run))
+			runEmail := tagValue(run.Data.Tags, userTagKey)
+			if runEmail == "" {
+				runEmail = experimentEmail
+			}
+			payload.Runs = append(payload.Runs, runToItem(run, experimentEmail))
 
 			if run.Inputs != nil {
 				for _, di := range run.Inputs.DatasetInputs {
-					item := datasetToItem(di.Dataset, run.Info.ExperimentID, inputContext(di))
+					item := datasetToItem(di.Dataset, run.Info.ExperimentID, inputContext(di), runEmail)
 					key := run.Info.ExperimentID + "\x00" + item.MLflowID
 					if datasetSeen[key] {
 						continue
@@ -76,7 +81,7 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 						return nil, fmt.Errorf("run %q logged model %q artifacts: %w", run.Info.RunID, modelID, err)
 					}
 					for _, f := range artifacts {
-						payload.Artifacts = append(payload.Artifacts, loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f))
+						payload.Artifacts = append(payload.Artifacts, loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f, runEmail))
 					}
 				}
 			} else {
@@ -85,7 +90,7 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 					return nil, fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
 				}
 				for _, f := range artifacts {
-					payload.Artifacts = append(payload.Artifacts, artifactToItem(client.baseURL, run.Info.RunID, f))
+					payload.Artifacts = append(payload.Artifacts, artifactToItem(client.baseURL, run.Info.RunID, f, runEmail))
 				}
 			}
 		}
@@ -94,7 +99,7 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 	return payload, nil
 }
 
-func versionEvaluations(ctx context.Context, client *Client, version ModelVersion, versionMLflowID string, runCache map[string]*Run) ([]gateway.MLEvaluationItem, error) {
+func versionEvaluations(ctx context.Context, client *Client, version ModelVersion, versionMLflowID, versionEmail string, runCache map[string]*Run) ([]gateway.MLEvaluationItem, error) {
 	modelID := loggedModelIDFromSource(version.Source)
 	if modelID == "" {
 		return nil, nil
@@ -127,7 +132,7 @@ func versionEvaluations(ctx context.Context, client *Client, version ModelVersio
 			}
 			runCache[runID] = run
 		}
-		items = append(items, evaluationToItem(*run, versionMLflowID, byRun[runID]))
+		items = append(items, evaluationToItem(*run, versionMLflowID, byRun[runID], versionEmail))
 	}
 	return items, nil
 }
@@ -149,6 +154,7 @@ func BuildModels(ctx context.Context, client *Client, project config.MLProjectRe
 		if ref.Description != "" {
 			model.Description = ref.Description
 		}
+		modelEmail := tagValue(model.Tags, userTagKey)
 
 		versions, err := client.ModelVersions(ctx, ref.Name)
 		if err != nil {
@@ -157,14 +163,18 @@ func BuildModels(ctx context.Context, client *Client, project config.MLProjectRe
 
 		var productionVersion *string
 		for _, v := range versions {
-			payload.Versions = append(payload.Versions, versionToItem(v))
+			payload.Versions = append(payload.Versions, versionToItem(v, modelEmail))
 			versionMLflowID := fmt.Sprintf("%s/%s", v.Name, v.Version)
 			if v.CurrentStage == "Production" {
 				id := versionMLflowID
 				productionVersion = &id
 			}
+			versionEmail := tagValue(v.Tags, userTagKey)
+			if versionEmail == "" {
+				versionEmail = modelEmail
+			}
 
-			evaluations, err := versionEvaluations(ctx, client, v, versionMLflowID, runCache)
+			evaluations, err := versionEvaluations(ctx, client, v, versionMLflowID, versionEmail, runCache)
 			if err != nil {
 				return nil, fmt.Errorf("model %q version %q evaluations: %w", ref.Name, v.Version, err)
 			}
