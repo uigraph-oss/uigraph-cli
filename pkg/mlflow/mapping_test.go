@@ -215,7 +215,7 @@ func TestEvaluationToItem(t *testing.T) {
 	if item.DatasetMLflowID == nil || *item.DatasetMLflowID != "2c55db12" {
 		t.Errorf("DatasetMLflowID = %v, want 2c55db12", item.DatasetMLflowID)
 	}
-	if !item.EndedAt.Equal(time.UnixMilli(end).UTC()) {
+	if item.EndedAt == nil || !item.EndedAt.Equal(time.UnixMilli(end).UTC()) {
 		t.Errorf("EndedAt = %v, want run end time", item.EndedAt)
 	}
 	if item.StartedAt.IsZero() {
@@ -234,8 +234,8 @@ func TestEvaluationToItemMissingTimestamps(t *testing.T) {
 	if item.StartedAt.Before(before) {
 		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
 	}
-	if item.EndedAt.Before(before) {
-		t.Errorf("EndedAt = %v, want at or after %v", item.EndedAt, before)
+	if item.EndedAt != nil {
+		t.Errorf("EndedAt = %v, want nil for an unfinished run", item.EndedAt)
 	}
 }
 
@@ -250,7 +250,7 @@ func TestRunToItemMissingTimestamps(t *testing.T) {
 	if item.StartedAt.Before(before) {
 		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
 	}
-	if item.EndedAt.Before(before) {
-		t.Errorf("EndedAt = %v, want at or after %v", item.EndedAt, before)
+	if item.EndedAt != nil {
+		t.Errorf("EndedAt = %v, want nil for an unfinished run", item.EndedAt)
 	}
 }

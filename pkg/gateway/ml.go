@@ -47,13 +47,12 @@ type MLVersionItem struct {
 }
 
 type MLExperimentItem struct {
-	MLflowID    string     `json:"mlflowId"`
-	ProjectName string     `json:"projectName"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	Tags        []string   `json:"tags"`
-	StartedAt   *time.Time `json:"startedAt"`
+	MLflowID    string   `json:"mlflowId"`
+	ProjectName string   `json:"projectName"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	Tags        []string `json:"tags"`
 }
 
 type MLRunItem struct {
@@ -63,7 +62,7 @@ type MLRunItem struct {
 	Name               string         `json:"name"`
 	Status             string         `json:"status"`
 	StartedAt          time.Time      `json:"startedAt"`
-	EndedAt            time.Time      `json:"endedAt"`
+	EndedAt            *time.Time     `json:"endedAt"`
 	Notes              string         `json:"notes"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
@@ -109,7 +108,7 @@ type MLEvaluationItem struct {
 	Description        string         `json:"description"`
 	Summary            string         `json:"summary"`
 	StartedAt          time.Time      `json:"startedAt"`
-	EndedAt            time.Time      `json:"endedAt"`
+	EndedAt            *time.Time     `json:"endedAt"`
 	Evaluator          string         `json:"evaluator"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`

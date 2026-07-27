@@ -179,7 +179,6 @@ func experimentToItem(exp *Experiment, projectName string) gateway.MLExperimentI
 		Description: tagValue(exp.Tags, "mlflow.note.content"),
 		Status:      status,
 		Tags:        experimentTags(exp.Tags),
-		StartedAt:   iso(exp.CreationTime),
 	}
 }
 
@@ -219,7 +218,7 @@ func runToItem(run Run) gateway.MLRunItem {
 		Name:               name,
 		Status:             status,
 		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
-		EndedAt:            nowIfNil(iso(run.Info.EndTime)),
+		EndedAt:            iso(run.Info.EndTime),
 		Notes:              tagValue(run.Data.Tags, "mlflow.note.content"),
 		Parameters:         parameters,
 		Metrics:            metrics,
@@ -318,7 +317,7 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 		Description:        tagValue(run.Data.Tags, "mlflow.note.content"),
 		Summary:            "",
 		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
-		EndedAt:            nowIfNil(iso(run.Info.EndTime)),
+		EndedAt:            iso(run.Info.EndTime),
 		Evaluator:          tagValue(run.Data.Tags, "mlflow.user"),
 		Parameters:         parameters,
 		Metrics:            values,
