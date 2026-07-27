@@ -20,6 +20,74 @@ type Config struct {
 	QueryFiles           []string         `yaml:"queryFiles,omitempty"`
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
+	ML                   []MLProjectRef   `yaml:"ml,omitempty"`
+}
+
+type MLProjectRef struct {
+	Name        string            `yaml:"name"`
+	Type        string            `yaml:"type"`
+	Description string            `yaml:"description,omitempty"`
+	Ownership   Ownership         `yaml:"ownership,omitempty"`
+	Source      MLSourceRef       `yaml:"source"`
+	Models      []MLModelRef      `yaml:"models,omitempty"`
+	Experiments []MLExperimentRef `yaml:"experiments,omitempty"`
+}
+
+type MLSourceRef struct {
+	Type     string `yaml:"type"`
+	URL      string `yaml:"url,omitempty"`
+	URLEnv   string `yaml:"urlEnv,omitempty"`
+	TokenEnv string `yaml:"tokenEnv,omitempty"`
+}
+
+func (s MLSourceRef) ResolveURL() (string, error) {
+	if s.URL != "" {
+		return s.URL, nil
+	}
+	if s.URLEnv != "" {
+		v := os.Getenv(s.URLEnv)
+		if v == "" {
+			return "", fmt.Errorf("environment variable %s is not set or empty", s.URLEnv)
+		}
+		return v, nil
+	}
+	return "", fmt.Errorf("neither url nor urlEnv is set")
+}
+
+func (s MLSourceRef) ResolveToken() (string, error) {
+	if s.TokenEnv == "" {
+		return "", nil
+	}
+	v := os.Getenv(s.TokenEnv)
+	if v == "" {
+		return "", fmt.Errorf("environment variable %s is not set or empty", s.TokenEnv)
+	}
+	return v, nil
+}
+
+type MLModelRef struct {
+	Name            string `yaml:"name"`
+	Description     string `yaml:"description,omitempty"`
+	ProblemType     string `yaml:"problemType,omitempty"`
+	Domain          string `yaml:"domain,omitempty"`
+	License         string `yaml:"license,omitempty"`
+	IntendedUse     string `yaml:"intendedUse,omitempty"`
+	Limitations     string `yaml:"limitations,omitempty"`
+	Recommendations string `yaml:"recommendations,omitempty"`
+	Considerations  string `yaml:"considerations,omitempty"`
+}
+
+type MLExperimentRef struct {
+	Name string `yaml:"name"`
+}
+
+var validProblemType = map[string]bool{
+	"classification": true,
+	"regression":     true,
+	"ranking":        true,
+	"generation":     true,
+	"embedding":      true,
+	"other":          true,
 }
 
 type MapRef struct {
@@ -507,6 +575,59 @@ func (c *Config) Validate() error {
 		if hasPath {
 			if _, err := os.Stat(q.Path); os.IsNotExist(err) {
 				return fmt.Errorf("queries[%d].path file does not exist: %s", i, q.Path)
+			}
+		}
+	}
+
+	for i, p := range c.ML {
+		if p.Name == "" {
+			return fmt.Errorf("ml[%d].name is required", i)
+		}
+		if p.Type != "model" && p.Type != "training" {
+			return fmt.Errorf("ml[%d].type must be one of: model, training", i)
+		}
+		if p.Source.Type != "mlflow" {
+			return fmt.Errorf("ml[%d].source.type must be: mlflow", i)
+		}
+		if p.Source.URL != "" && p.Source.URLEnv != "" {
+			return fmt.Errorf("ml[%d].source: specify either url or urlEnv, not both", i)
+		}
+		if p.Source.URL == "" && p.Source.URLEnv == "" {
+			return fmt.Errorf("ml[%d].source: either url or urlEnv is required", i)
+		}
+		if p.Source.URLEnv != "" && os.Getenv(p.Source.URLEnv) == "" {
+			return fmt.Errorf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv)
+		}
+		if p.Source.TokenEnv != "" && os.Getenv(p.Source.TokenEnv) == "" {
+			return fmt.Errorf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv)
+		}
+		if p.Type == "model" {
+			if len(p.Models) == 0 {
+				return fmt.Errorf("ml[%d]: a model project must declare models", i)
+			}
+			if len(p.Experiments) > 0 {
+				return fmt.Errorf("ml[%d]: a model project must not declare experiments", i)
+			}
+			for j, m := range p.Models {
+				if m.Name == "" {
+					return fmt.Errorf("ml[%d].models[%d].name is required", i, j)
+				}
+				if m.ProblemType != "" && !validProblemType[m.ProblemType] {
+					return fmt.Errorf("ml[%d].models[%d].problemType must be one of: classification, regression, ranking, generation, embedding, other", i, j)
+				}
+			}
+		}
+		if p.Type == "training" {
+			if len(p.Experiments) == 0 {
+				return fmt.Errorf("ml[%d]: a training project must declare experiments", i)
+			}
+			if len(p.Models) > 0 {
+				return fmt.Errorf("ml[%d]: a training project must not declare models", i)
+			}
+			for j, e := range p.Experiments {
+				if e.Name == "" {
+					return fmt.Errorf("ml[%d].experiments[%d].name is required", i, j)
+				}
 			}
 		}
 	}

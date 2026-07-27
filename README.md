@@ -21,6 +21,22 @@ This README stays intentionally brief. The hosted docs are the source of truth f
 go install github.com/uigraph-oss/uigraph-cli@latest
 ```
 
+### Run with Docker
+
+No Go install required. Pull the published image from Docker Hub and sync from your repository:
+
+```bash
+docker pull uigraph-oss/uigraph-cli:latest
+
+docker run --rm \
+  -e UIGRAPH_TOKEN \
+  -v "$(pwd):/workspace" \
+  -w /workspace \
+  uigraph/uigraph-cli:latest sync
+```
+
+Mount your repo at `/workspace` so the CLI can read `.uigraph.yaml` and API specs. Pass any sync flags after the image name (for example `sync --dry-run`).
+
 ### Build from source
 
 ```bash

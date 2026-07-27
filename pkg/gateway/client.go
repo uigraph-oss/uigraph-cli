@@ -352,7 +352,7 @@ func (c *Client) SyncService(ctx context.Context, req ServiceSyncRequest) (*Serv
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -391,7 +391,7 @@ func (c *Client) SyncAPIGroup(ctx context.Context, req APIGroupSyncRequest) (*AP
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -430,7 +430,7 @@ func (c *Client) SyncServiceDependencies(ctx context.Context, req ServiceDepende
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -469,7 +469,7 @@ func (c *Client) SyncArchitectureDiagram(ctx context.Context, req ArchitectureDi
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -508,7 +508,7 @@ func (c *Client) SyncTestPack(ctx context.Context, req TestPackSyncRequest) (*Te
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -547,7 +547,7 @@ func (c *Client) SyncTestCase(ctx context.Context, req TestCaseSyncRequest) (*Te
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -586,7 +586,7 @@ func (c *Client) PrepareServiceDocUpload(ctx context.Context, req ServiceDocPrep
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -625,7 +625,7 @@ func (c *Client) CompleteServiceDocUpload(ctx context.Context, req ServiceDocCom
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -663,7 +663,7 @@ func (c *Client) SyncMap(ctx context.Context, req MapSyncRequest) (*MapSyncRespo
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -699,7 +699,7 @@ func (c *Client) PrepareFrameSync(ctx context.Context, req FramePrepareRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -735,7 +735,7 @@ func (c *Client) CompleteFrameSync(ctx context.Context, req FrameCompleteRequest
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -772,7 +772,7 @@ func (c *Client) SyncFocalPoint(ctx context.Context, req FocalPointSyncRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -811,7 +811,7 @@ func (c *Client) SyncFocalPointMeta(ctx context.Context, req FocalPointMetaSyncR
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -850,7 +850,7 @@ func (c *Client) SyncServiceDatabase(ctx context.Context, req ServiceDatabaseSyn
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -889,7 +889,7 @@ func (c *Client) SyncSavedQuery(ctx context.Context, req SavedQuerySyncRequest) 
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

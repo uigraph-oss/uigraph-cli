@@ -26,7 +26,7 @@ func TestSyncSavedQuery_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(SavedQuerySyncResponse{
+		_ = json.NewEncoder(w).Encode(SavedQuerySyncResponse{
 			SourceRef: gotReq.SourceRef,
 			ID:        "query-123",
 			Created:   true,
@@ -82,7 +82,7 @@ func TestSyncSavedQuery_Success(t *testing.T) {
 func TestSyncSavedQuery_ErrorStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":"boom"}`))
+		_, _ = w.Write([]byte(`{"error":"boom"}`))
 	}))
 	defer server.Close()
 
@@ -112,7 +112,7 @@ func TestSyncServiceDependencies_Success(t *testing.T) {
 			t.Fatalf("failed to decode request body: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(ServiceDependenciesSyncResponse{Message: "dependencies synced"})
+		_ = json.NewEncoder(w).Encode(ServiceDependenciesSyncResponse{Message: "dependencies synced"})
 	}))
 	defer server.Close()
 

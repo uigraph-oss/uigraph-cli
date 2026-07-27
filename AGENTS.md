@@ -1,0 +1,1 @@
+- DO not run `go build`; use `make build` instead.

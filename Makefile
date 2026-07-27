@@ -1,10 +1,11 @@
-.PHONY: build test clean install run-example
+.PHONY: build test clean install run-example docker-build
 
 # Build configuration
 BINARY_NAME=uigraph
 BUILD_DIR=bin
 GO=go
 MAIN_PATH=./main.go
+DOCKER_IMAGE=uigraph-cli
 
 # Build the CLI
 build:
@@ -71,6 +72,12 @@ tidy:
 	@$(GO) mod tidy
 	@echo "✓ Tidy complete"
 
+# Build the local Docker image
+docker-build:
+	@echo "Building Docker image $(DOCKER_IMAGE)..."
+	@docker build -t $(DOCKER_IMAGE) .
+	@echo "✓ Docker image built: $(DOCKER_IMAGE)"
+
 # Download dependencies
 deps:
 	@echo "Downloading dependencies..."
@@ -85,6 +92,7 @@ help:
 	@echo "  test          - Run tests"
 	@echo "  test-coverage - Run tests with coverage report"
 	@echo "  clean         - Remove build artifacts"
+	@echo "  docker-build  - Build the local Docker image"
 	@echo "  install       - Install CLI locally"
 	@echo "  run-example   - Run example with dry-run"
 	@echo "  fmt           - Format code"

@@ -18,6 +18,7 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/config"
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 	"github.com/uigraph-oss/uigraph-cli/pkg/git"
+	"github.com/uigraph-oss/uigraph-cli/pkg/mlflow"
 )
 
 var (
@@ -748,7 +749,130 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 13. Print summary
+	// 13. Sync ML projects (models & experiments from MLflow)
+	totalMLModels := 0
+	totalMLExperiments := 0
+	if len(cfg.ML) > 0 {
+		fmt.Printf("\n🤖 Syncing %d ML %s...\n", len(cfg.ML), pluralize(len(cfg.ML), "project", "projects"))
+
+		orderedML := make([]config.MLProjectRef, 0, len(cfg.ML))
+		for _, project := range cfg.ML {
+			if project.Type == "training" {
+				orderedML = append(orderedML, project)
+			}
+		}
+		for _, project := range cfg.ML {
+			if project.Type != "training" {
+				orderedML = append(orderedML, project)
+			}
+		}
+
+		syncedExperiments := map[string]bool{}
+
+		for _, project := range orderedML {
+			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
+
+			sourceURL, err := project.Source.ResolveURL()
+			if err != nil {
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow url for ML project %q", project.Name), err)
+			}
+			mlflowToken, err := project.Source.ResolveToken()
+			if err != nil {
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow token for ML project %q", project.Name), err)
+			}
+
+			projectItem := gateway.MLProjectItem{
+				Name:        project.Name,
+				Type:        project.Type,
+				Description: project.Description,
+				SourceType:  project.Source.Type,
+				SourceURL:   sourceURL,
+				Team:        project.Ownership.Team,
+			}
+
+			mlflowClient := mlflow.NewClient(sourceURL, mlflowToken)
+
+			if project.Type == "training" {
+				tp, err := mlflow.BuildTraining(ctx, mlflowClient, project)
+				if err != nil {
+					exitGatewayErrorErr(fmt.Sprintf("collect ML project %q from MLflow", project.Name), err)
+				}
+				totalMLExperiments += len(tp.Experiments)
+				for _, exp := range tp.Experiments {
+					syncedExperiments[sourceURL+"\x00"+exp.MLflowID] = true
+				}
+
+				if dryRun {
+					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
+					fmt.Printf("  Experiments: %d, Runs: %d, Datasets: %d, Artifacts: %d\n",
+						len(tp.Experiments), len(tp.Runs), len(tp.Datasets), len(tp.Artifacts))
+					data, _ := json.MarshalIndent(tp.Experiments, "", "  ")
+					fmt.Println(string(data))
+				} else {
+					if _, err := client.SyncMLProjects(ctx, []gateway.MLProjectItem{projectItem}); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
+					}
+					if _, err := client.SyncMLExperiments(ctx, tp.Experiments); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML experiments for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLDatasets(ctx, tp.Datasets); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML datasets for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLRuns(ctx, tp.Runs); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML runs for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLArtifacts(ctx, tp.Artifacts); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML artifacts for %q", project.Name), err)
+					}
+					fmt.Printf("    ✓ ML project synced: %s (%d experiments, %d runs)\n", project.Name, len(tp.Experiments), len(tp.Runs))
+				}
+			}
+
+			if project.Type == "model" {
+				mp, err := mlflow.BuildModels(ctx, mlflowClient, project)
+				if err != nil {
+					exitGatewayErrorErr(fmt.Sprintf("collect ML project %q from MLflow", project.Name), err)
+				}
+				totalMLModels += len(mp.Models)
+
+				evaluations := make([]gateway.MLEvaluationItem, 0, len(mp.Evaluations))
+				skippedEvaluations := 0
+				for _, e := range mp.Evaluations {
+					if syncedExperiments[sourceURL+"\x00"+e.ExperimentMLflowID] {
+						evaluations = append(evaluations, e)
+						continue
+					}
+					skippedEvaluations++
+				}
+
+				if dryRun {
+					fmt.Printf("\n=== DRY RUN: ML Model Project (%s) ===\n", project.Name)
+					fmt.Printf("  Models: %d, Versions: %d, Evaluations: %d (skipped %d)\n", len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
+					data, _ := json.MarshalIndent(mp.ModelsProduction, "", "  ")
+					fmt.Println(string(data))
+				} else {
+					if _, err := client.SyncMLProjects(ctx, []gateway.MLProjectItem{projectItem}); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
+					}
+					if _, err := client.SyncMLModels(ctx, mp.Models); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML models for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLVersions(ctx, mp.Versions); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML versions for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLModels(ctx, mp.ModelsProduction); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML models (production) for %q", project.Name), err)
+					}
+					if _, err := client.SyncMLEvaluations(ctx, evaluations); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML evaluations for %q", project.Name), err)
+					}
+					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d evaluations, %d evaluations skipped)\n", project.Name, len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
+				}
+			}
+		}
+	}
+
+	// 14. Print summary
 	elapsed := time.Since(startTime)
 	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("📋 Sync Summary")
@@ -770,6 +894,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Queries: %d\n", len(cfg.Queries))
 	fmt.Printf("Docs: %d\n", len(cfg.Docs))
 	fmt.Printf("Maps: %d (Frames: %d, Focal Points: %d, Components: %d)\n", len(cfg.Maps), totalFrames, totalFocalPoints, totalComponents)
+	fmt.Printf("ML Projects: %d (Models: %d, Experiments: %d)\n", len(cfg.ML), totalMLModels, totalMLExperiments)
 	fmt.Printf("Duration: %s\n", formatDuration(elapsed))
 	if dryRun {
 		fmt.Println("\n(Dry run - no data sent to gateway)")
@@ -794,7 +919,7 @@ func uploadToS3(ctx context.Context, presignedURL string, content []byte, fileTy
 	if err != nil {
 		return fmt.Errorf("S3 upload request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
