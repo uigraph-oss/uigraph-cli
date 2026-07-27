@@ -115,14 +115,15 @@ type RegisteredModel struct {
 }
 
 type ModelVersion struct {
-	Name              string `json:"name"`
-	Version           string `json:"version"`
-	CreationTimestamp *int64 `json:"creation_timestamp"`
-	CurrentStage      string `json:"current_stage"`
-	Description       string `json:"description"`
-	RunID             string `json:"run_id"`
-	Source            string `json:"source"`
-	Status            string `json:"status"`
+	Name              string     `json:"name"`
+	Version           string     `json:"version"`
+	CreationTimestamp *int64     `json:"creation_timestamp"`
+	CurrentStage      string     `json:"current_stage"`
+	Description       string     `json:"description"`
+	RunID             string     `json:"run_id"`
+	Source            string     `json:"source"`
+	Status            string     `json:"status"`
+	Tags              []KeyValue `json:"tags"`
 }
 
 type LoggedModelInfo struct {

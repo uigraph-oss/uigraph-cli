@@ -19,9 +19,18 @@ func TestConfigValidateML(t *testing.T) {
 		}
 	}
 
+	envProject := func(source MLSourceRef) Config {
+		return Config{
+			Version: 1,
+			Project: Project{Name: "test-project"},
+			ML:      []MLProjectRef{{Name: "P", Type: "model", Source: source, Models: []MLModelRef{{Name: "m"}}}},
+		}
+	}
+
 	tests := []struct {
 		name    string
 		config  Config
+		env     map[string]string
 		wantErr bool
 		errMsg  string
 	}{
@@ -77,14 +86,43 @@ func TestConfigValidateML(t *testing.T) {
 			errMsg:  "source.type must be: mlflow",
 		},
 		{
-			name: "missing source url",
-			config: Config{
-				Version: 1,
-				Project: Project{Name: "test-project"},
-				ML:      []MLProjectRef{{Name: "P", Type: "model", Source: MLSourceRef{Type: "mlflow"}, Models: []MLModelRef{{Name: "m"}}}},
-			},
+			name:    "missing source url and urlEnv",
+			config:  envProject(MLSourceRef{Type: "mlflow"}),
 			wantErr: true,
-			errMsg:  "source.url is required",
+			errMsg:  "either url or urlEnv is required",
+		},
+		{
+			name:    "both url and urlEnv",
+			config:  envProject(MLSourceRef{Type: "mlflow", URL: "http://x", URLEnv: "TEST_MLFLOW_URL"}),
+			env:     map[string]string{"TEST_MLFLOW_URL": "http://y"},
+			wantErr: true,
+			errMsg:  "specify either url or urlEnv, not both",
+		},
+		{
+			name:    "urlEnv points at unset variable",
+			config:  envProject(MLSourceRef{Type: "mlflow", URLEnv: "TEST_MLFLOW_URL"}),
+			env:     map[string]string{"TEST_MLFLOW_URL": ""},
+			wantErr: true,
+			errMsg:  "urlEnv: environment variable TEST_MLFLOW_URL is not set or empty",
+		},
+		{
+			name:    "urlEnv resolves",
+			config:  envProject(MLSourceRef{Type: "mlflow", URLEnv: "TEST_MLFLOW_URL"}),
+			env:     map[string]string{"TEST_MLFLOW_URL": "http://y"},
+			wantErr: false,
+		},
+		{
+			name:    "tokenEnv points at unset variable",
+			config:  envProject(MLSourceRef{Type: "mlflow", URL: "http://x", TokenEnv: "TEST_MLFLOW_TOKEN"}),
+			env:     map[string]string{"TEST_MLFLOW_TOKEN": ""},
+			wantErr: true,
+			errMsg:  "tokenEnv: environment variable TEST_MLFLOW_TOKEN is not set or empty",
+		},
+		{
+			name:    "tokenEnv resolves",
+			config:  envProject(MLSourceRef{Type: "mlflow", URL: "http://x", TokenEnv: "TEST_MLFLOW_TOKEN"}),
+			env:     map[string]string{"TEST_MLFLOW_TOKEN": "secret"},
+			wantErr: false,
 		},
 		{
 			name:    "model project without models",
@@ -122,6 +160,9 @@ func TestConfigValidateML(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			for k, v := range tt.env {
+				t.Setenv(k, v)
+			}
 			err := tt.config.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)

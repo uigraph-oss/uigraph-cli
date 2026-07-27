@@ -34,9 +34,35 @@ type MLProjectRef struct {
 }
 
 type MLSourceRef struct {
-	Type  string `yaml:"type"`
-	URL   string `yaml:"url"`
-	Token string `yaml:"token,omitempty"`
+	Type     string `yaml:"type"`
+	URL      string `yaml:"url,omitempty"`
+	URLEnv   string `yaml:"urlEnv,omitempty"`
+	TokenEnv string `yaml:"tokenEnv,omitempty"`
+}
+
+func (s MLSourceRef) ResolveURL() (string, error) {
+	if s.URL != "" {
+		return s.URL, nil
+	}
+	if s.URLEnv != "" {
+		v := os.Getenv(s.URLEnv)
+		if v == "" {
+			return "", fmt.Errorf("environment variable %s is not set or empty", s.URLEnv)
+		}
+		return v, nil
+	}
+	return "", fmt.Errorf("neither url nor urlEnv is set")
+}
+
+func (s MLSourceRef) ResolveToken() (string, error) {
+	if s.TokenEnv == "" {
+		return "", nil
+	}
+	v := os.Getenv(s.TokenEnv)
+	if v == "" {
+		return "", fmt.Errorf("environment variable %s is not set or empty", s.TokenEnv)
+	}
+	return v, nil
 }
 
 type MLModelRef struct {
@@ -563,8 +589,17 @@ func (c *Config) Validate() error {
 		if p.Source.Type != "mlflow" {
 			return fmt.Errorf("ml[%d].source.type must be: mlflow", i)
 		}
-		if p.Source.URL == "" {
-			return fmt.Errorf("ml[%d].source.url is required", i)
+		if p.Source.URL != "" && p.Source.URLEnv != "" {
+			return fmt.Errorf("ml[%d].source: specify either url or urlEnv, not both", i)
+		}
+		if p.Source.URL == "" && p.Source.URLEnv == "" {
+			return fmt.Errorf("ml[%d].source: either url or urlEnv is required", i)
+		}
+		if p.Source.URLEnv != "" && os.Getenv(p.Source.URLEnv) == "" {
+			return fmt.Errorf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv)
+		}
+		if p.Source.TokenEnv != "" && os.Getenv(p.Source.TokenEnv) == "" {
+			return fmt.Errorf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv)
 		}
 		if p.Type == "model" {
 			if len(p.Models) == 0 {

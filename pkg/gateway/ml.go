@@ -35,6 +35,7 @@ type MLModelItem struct {
 	ProductionVersionMLflowID *string    `json:"productionVersionMlflowId"`
 	CreatedAt                 *time.Time `json:"createdAt"`
 	UpdatedAt                 *time.Time `json:"updatedAt"`
+	UserEmail                 string     `json:"userEmail,omitempty"`
 }
 
 type MLVersionItem struct {
@@ -44,16 +45,17 @@ type MLVersionItem struct {
 	Version       string     `json:"version"`
 	Description   string     `json:"description"`
 	CreatedAt     *time.Time `json:"createdAt"`
+	UserEmail     string     `json:"userEmail,omitempty"`
 }
 
 type MLExperimentItem struct {
-	MLflowID    string     `json:"mlflowId"`
-	ProjectName string     `json:"projectName"`
-	Name        string     `json:"name"`
-	Description string     `json:"description"`
-	Status      string     `json:"status"`
-	Tags        []string   `json:"tags"`
-	StartedAt   *time.Time `json:"startedAt"`
+	MLflowID    string   `json:"mlflowId"`
+	ProjectName string   `json:"projectName"`
+	Name        string   `json:"name"`
+	Description string   `json:"description"`
+	Status      string   `json:"status"`
+	Tags        []string `json:"tags"`
+	UserEmail   string   `json:"userEmail,omitempty"`
 }
 
 type MLRunItem struct {
@@ -62,11 +64,13 @@ type MLRunItem struct {
 	DatasetMLflowID    *string        `json:"datasetMlflowId"`
 	Name               string         `json:"name"`
 	Status             string         `json:"status"`
-	StartedAt          *time.Time     `json:"startedAt"`
+	StartedAt          time.Time      `json:"startedAt"`
 	EndedAt            *time.Time     `json:"endedAt"`
 	Notes              string         `json:"notes"`
+	Tags               []string       `json:"tags"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
+	UserEmail          string         `json:"userEmail,omitempty"`
 }
 
 type MLArtifactItem struct {
@@ -78,6 +82,7 @@ type MLArtifactItem struct {
 	DownloadURI string `json:"downloadUri"`
 	Size        string `json:"size"`
 	Format      string `json:"format"`
+	UserEmail   string `json:"userEmail,omitempty"`
 }
 
 type MLSchemaField struct {
@@ -87,16 +92,17 @@ type MLSchemaField struct {
 }
 
 type MLDatasetItem struct {
-	MLflowID           string            `json:"mlflowId"`
-	ExperimentMLflowID string            `json:"experimentMlflowId"`
-	Name               string            `json:"name"`
-	Digest             string            `json:"digest"`
-	Source             string            `json:"source"`
-	SourceType         string            `json:"sourceType"`
-	Context            string            `json:"context"`
-	RowCount           int64             `json:"rowCount"`
-	Schema             []MLSchemaField   `json:"schema"`
-	Tags               map[string]string `json:"tags"`
+	MLflowID           string          `json:"mlflowId"`
+	ExperimentMLflowID string          `json:"experimentMlflowId"`
+	Name               string          `json:"name"`
+	Digest             string          `json:"digest"`
+	Source             string          `json:"source"`
+	SourceType         string          `json:"sourceType"`
+	Context            string          `json:"context"`
+	RowCount           int64           `json:"rowCount"`
+	Schema             []MLSchemaField `json:"schema"`
+	Tags               []string        `json:"tags"`
+	UserEmail          string          `json:"userEmail,omitempty"`
 }
 
 type MLEvaluationItem struct {
@@ -108,10 +114,13 @@ type MLEvaluationItem struct {
 	Type               string         `json:"type"`
 	Description        string         `json:"description"`
 	Summary            string         `json:"summary"`
-	EvaluatedAt        *time.Time     `json:"evaluatedAt"`
+	StartedAt          time.Time      `json:"startedAt"`
+	EndedAt            *time.Time     `json:"endedAt"`
 	Evaluator          string         `json:"evaluator"`
+	Tags               []string       `json:"tags"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
+	UserEmail          string         `json:"userEmail,omitempty"`
 }
 
 type mlSyncResponse struct {

@@ -10,6 +10,8 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 )
 
+const userTagKey = "uigraph.user"
+
 var experimentStatus = map[string]string{"active": "active", "deleted": "archived"}
 
 var runStatus = map[string]string{
@@ -28,6 +30,13 @@ func iso(ms *int64) *time.Time {
 	}
 	t := time.UnixMilli(*ms).UTC()
 	return &t
+}
+
+func nowIfNil(t *time.Time) time.Time {
+	if t == nil {
+		return time.Now().UTC()
+	}
+	return *t
 }
 
 func extension(name string) string {
@@ -145,10 +154,10 @@ func inputContext(di DatasetInput) string {
 	return "training"
 }
 
-func experimentTags(tags []KeyValue) []string {
+func normalizeTags(tags []KeyValue) []string {
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
-		if strings.HasPrefix(tag.Key, "mlflow.") {
+		if strings.HasPrefix(tag.Key, "mlflow.") || tag.Key == userTagKey {
 			continue
 		}
 		if tag.Value == "" {
@@ -171,8 +180,8 @@ func experimentToItem(exp *Experiment, projectName string) gateway.MLExperimentI
 		Name:        exp.Name,
 		Description: tagValue(exp.Tags, "mlflow.note.content"),
 		Status:      status,
-		Tags:        experimentTags(exp.Tags),
-		StartedAt:   iso(exp.CreationTime),
+		Tags:        normalizeTags(exp.Tags),
+		UserEmail:   tagValue(exp.Tags, userTagKey),
 	}
 }
 
@@ -188,7 +197,7 @@ func firstDatasetMLflowID(run Run) *string {
 	return &id
 }
 
-func runToItem(run Run) gateway.MLRunItem {
+func runToItem(run Run, experimentEmail string) gateway.MLRunItem {
 	status, ok := runStatus[run.Info.Status]
 	if !ok {
 		status = "running"
@@ -196,6 +205,10 @@ func runToItem(run Run) gateway.MLRunItem {
 	name := tagValue(run.Data.Tags, "mlflow.runName")
 	if name == "" {
 		name = run.Info.RunID
+	}
+	userEmail := tagValue(run.Data.Tags, userTagKey)
+	if userEmail == "" {
+		userEmail = experimentEmail
 	}
 	parameters := map[string]any{}
 	for _, p := range run.Data.Params {
@@ -211,11 +224,13 @@ func runToItem(run Run) gateway.MLRunItem {
 		DatasetMLflowID:    firstDatasetMLflowID(run),
 		Name:               name,
 		Status:             status,
-		StartedAt:          iso(run.Info.StartTime),
+		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
 		EndedAt:            iso(run.Info.EndTime),
 		Notes:              tagValue(run.Data.Tags, "mlflow.note.content"),
+		Tags:               normalizeTags(run.Data.Tags),
 		Parameters:         parameters,
 		Metrics:            metrics,
+		UserEmail:          userEmail,
 	}
 }
 
@@ -277,20 +292,18 @@ func loggedModelIDFromSource(source string) string {
 	return id
 }
 
-func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway.MLEvaluationItem {
+func evaluationToItem(run Run, versionMLflowID string, metrics []Metric, versionEmail string) gateway.MLEvaluationItem {
 	name := tagValue(run.Data.Tags, "mlflow.runName")
 	if name == "" {
 		name = run.Info.RunID
 	}
+	userEmail := tagValue(run.Data.Tags, userTagKey)
+	if userEmail == "" {
+		userEmail = versionEmail
+	}
 	parameters := map[string]any{}
 	for _, p := range run.Data.Params {
 		parameters[p.Key] = p.Value
-	}
-	for _, t := range run.Data.Tags {
-		if strings.HasPrefix(t.Key, "mlflow.") {
-			continue
-		}
-		parameters[t.Key] = t.Value
 	}
 	values := map[string]any{}
 	var datasetMLflowID *string
@@ -301,10 +314,6 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 			datasetMLflowID = &digest
 		}
 	}
-	evaluatedAt := iso(run.Info.EndTime)
-	if evaluatedAt == nil {
-		evaluatedAt = iso(run.Info.StartTime)
-	}
 	return gateway.MLEvaluationItem{
 		MLflowID:           fmt.Sprintf("%s/%s", versionMLflowID, run.Info.RunID),
 		VersionMLflowID:    versionMLflowID,
@@ -314,34 +323,38 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 		Type:               "Offline Benchmark",
 		Description:        tagValue(run.Data.Tags, "mlflow.note.content"),
 		Summary:            "",
-		EvaluatedAt:        evaluatedAt,
+		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
+		EndedAt:            iso(run.Info.EndTime),
 		Evaluator:          tagValue(run.Data.Tags, "mlflow.user"),
+		Tags:               normalizeTags(run.Data.Tags),
 		Parameters:         parameters,
 		Metrics:            values,
+		UserEmail:          userEmail,
 	}
 }
 
 func modelToItem(model *RegisteredModel, projectName string, productionVersionMLflowID *string) gateway.MLModelItem {
-	tags := make([]string, 0, len(model.Tags))
-	for _, tag := range model.Tags {
-		tags = append(tags, tag.Key)
-	}
 	return gateway.MLModelItem{
 		MLflowID:                  model.Name,
 		ProjectName:               projectName,
 		Name:                      model.Name,
 		Description:               model.Description,
-		Tags:                      tags,
+		Tags:                      normalizeTags(model.Tags),
 		ProductionVersionMLflowID: productionVersionMLflowID,
 		CreatedAt:                 iso(model.CreationTimestamp),
 		UpdatedAt:                 iso(model.LastUpdatedTimestamp),
+		UserEmail:                 tagValue(model.Tags, userTagKey),
 	}
 }
 
-func versionToItem(v ModelVersion) gateway.MLVersionItem {
+func versionToItem(v ModelVersion, modelEmail string) gateway.MLVersionItem {
 	var runID *string
 	if v.RunID != "" {
 		runID = &v.RunID
+	}
+	userEmail := tagValue(v.Tags, userTagKey)
+	if userEmail == "" {
+		userEmail = modelEmail
 	}
 	return gateway.MLVersionItem{
 		MLflowID:      fmt.Sprintf("%s/%s", v.Name, v.Version),
@@ -350,10 +363,11 @@ func versionToItem(v ModelVersion) gateway.MLVersionItem {
 		Version:       v.Version,
 		Description:   v.Description,
 		CreatedAt:     iso(v.CreationTimestamp),
+		UserEmail:     userEmail,
 	}
 }
 
-func artifactToItem(baseURL, runID string, f FileInfo) gateway.MLArtifactItem {
+func artifactToItem(baseURL, runID string, f FileInfo, userEmail string) gateway.MLArtifactItem {
 	name := f.Path
 	if idx := strings.LastIndex(f.Path, "/"); idx >= 0 {
 		name = f.Path[idx+1:]
@@ -373,10 +387,11 @@ func artifactToItem(baseURL, runID string, f FileInfo) gateway.MLArtifactItem {
 		DownloadURI: downloadURI,
 		Size:        humanSize(f.FileSize),
 		Format:      extension(name),
+		UserEmail:   userEmail,
 	}
 }
 
-func loggedModelArtifactToItem(baseURL, runID, modelID string, f FileInfo) gateway.MLArtifactItem {
+func loggedModelArtifactToItem(baseURL, runID, modelID string, f FileInfo, userEmail string) gateway.MLArtifactItem {
 	name := f.Path
 	if idx := strings.LastIndex(f.Path, "/"); idx >= 0 {
 		name = f.Path[idx+1:]
@@ -396,10 +411,12 @@ func loggedModelArtifactToItem(baseURL, runID, modelID string, f FileInfo) gatew
 		DownloadURI: downloadURI,
 		Size:        humanSize(f.FileSize),
 		Format:      extension(name),
+		UserEmail:   userEmail,
 	}
 }
 
-func datasetToItem(d Dataset, experimentMLflowID, context string) gateway.MLDatasetItem {
+func datasetToItem(di DatasetInput, experimentMLflowID, userEmail string) gateway.MLDatasetItem {
+	d := di.Dataset
 	id := d.Digest
 	if id == "" {
 		id = d.Name
@@ -411,9 +428,10 @@ func datasetToItem(d Dataset, experimentMLflowID, context string) gateway.MLData
 		Digest:             d.Digest,
 		Source:             d.Source,
 		SourceType:         d.SourceType,
-		Context:            context,
+		Context:            inputContext(di),
 		RowCount:           datasetRowCount(d.Profile),
 		Schema:             datasetSchema(d.Schema),
-		Tags:               map[string]string{},
+		Tags:               normalizeTags(di.Tags),
+		UserEmail:          userEmail,
 	}
 }
