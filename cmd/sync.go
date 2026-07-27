@@ -772,20 +772,25 @@ func runSync(cmd *cobra.Command, args []string) error {
 		for _, project := range orderedML {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
 
+			sourceURL, err := project.Source.ResolveURL()
+			if err != nil {
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow url for ML project %q", project.Name), err)
+			}
+			mlflowToken, err := project.Source.ResolveToken()
+			if err != nil {
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow token for ML project %q", project.Name), err)
+			}
+
 			projectItem := gateway.MLProjectItem{
 				Name:        project.Name,
 				Type:        project.Type,
 				Description: project.Description,
 				SourceType:  project.Source.Type,
-				SourceURL:   project.Source.URL,
+				SourceURL:   sourceURL,
 				Team:        project.Ownership.Team,
 			}
 
-			mlflowToken := project.Source.Token
-			if mlflowToken == "" {
-				mlflowToken = os.Getenv("MLFLOW_TOKEN")
-			}
-			mlflowClient := mlflow.NewClient(project.Source.URL, mlflowToken)
+			mlflowClient := mlflow.NewClient(sourceURL, mlflowToken)
 
 			if project.Type == "training" {
 				tp, err := mlflow.BuildTraining(ctx, mlflowClient, project)
@@ -794,7 +799,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 				}
 				totalMLExperiments += len(tp.Experiments)
 				for _, exp := range tp.Experiments {
-					syncedExperiments[project.Source.URL+"\x00"+exp.MLflowID] = true
+					syncedExperiments[sourceURL+"\x00"+exp.MLflowID] = true
 				}
 
 				if dryRun {
@@ -833,7 +838,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 				evaluations := make([]gateway.MLEvaluationItem, 0, len(mp.Evaluations))
 				skippedEvaluations := 0
 				for _, e := range mp.Evaluations {
-					if syncedExperiments[project.Source.URL+"\x00"+e.ExperimentMLflowID] {
+					if syncedExperiments[sourceURL+"\x00"+e.ExperimentMLflowID] {
 						evaluations = append(evaluations, e)
 						continue
 					}

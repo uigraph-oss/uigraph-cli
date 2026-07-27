@@ -111,6 +111,7 @@ ml:
       email: team@uigraph.com
     source:
       type: mlflow
-      url: http://localhost:5000
+      urlEnv: FACEBOOK_MLFLOW_URL
+      tokenEnv: FACEBOOK_MLFLOW_TOKEN
     experiments:
       - name: Sample experiment
