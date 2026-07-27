@@ -24,7 +24,7 @@ func TestSyncMLProjects_Success(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mlSyncResponse{Synced: len(gotReq)})
+		_ = json.NewEncoder(w).Encode(mlSyncResponse{Synced: len(gotReq)})
 	}))
 	defer server.Close()
 
@@ -61,7 +61,7 @@ func TestSyncMLRuns_Path(t *testing.T) {
 		gotPath = r.URL.Path
 		gotToken = r.Header.Get("X-API-Token")
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(mlSyncResponse{Synced: 2})
+		_ = json.NewEncoder(w).Encode(mlSyncResponse{Synced: 2})
 	}))
 	defer server.Close()
 
@@ -88,7 +88,7 @@ func TestSyncMLRuns_Path(t *testing.T) {
 func TestSyncMLProjects_ErrorStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message":"boom"}`))
+		_, _ = w.Write([]byte(`{"message":"boom"}`))
 	}))
 	defer server.Close()
 

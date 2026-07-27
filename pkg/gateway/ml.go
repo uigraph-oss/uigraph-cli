@@ -145,7 +145,7 @@ func (c *Client) postMLSync(ctx context.Context, path string, payload any) (int,
 	if err != nil {
 		return 0, fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {

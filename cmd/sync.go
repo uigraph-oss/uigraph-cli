@@ -919,7 +919,7 @@ func uploadToS3(ctx context.Context, presignedURL string, content []byte, fileTy
 	if err != nil {
 		return fmt.Errorf("S3 upload request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
