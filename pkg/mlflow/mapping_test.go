@@ -117,6 +117,73 @@ func TestExperimentToItem(t *testing.T) {
 	}
 }
 
+func TestModelToItemTags(t *testing.T) {
+	model := RegisteredModel{
+		Name: "Saba",
+		Tags: []KeyValue{
+			{Key: "team", Value: "search"},
+			{Key: "uigraph.user", Value: "sayad@example.com"},
+			{Key: "mlflow.internal", Value: "noise"},
+			{Key: "baseline"},
+		},
+	}
+	item := modelToItem(&model, "Model Project", nil)
+	if len(item.Tags) != 2 {
+		t.Fatalf("Tags = %v, want 2 entries", item.Tags)
+	}
+	if item.Tags[0] != "team: search" {
+		t.Errorf("Tags[0] = %q, want team: search", item.Tags[0])
+	}
+	if item.Tags[1] != "baseline" {
+		t.Errorf("Tags[1] = %q, want baseline", item.Tags[1])
+	}
+	if item.UserEmail != "sayad@example.com" {
+		t.Errorf("UserEmail = %q, want sayad@example.com", item.UserEmail)
+	}
+}
+
+func TestRunToItemTags(t *testing.T) {
+	run := Run{
+		Info: RunInfo{RunID: "run-1", ExperimentID: "exp-1"},
+		Data: RunData{Tags: []KeyValue{
+			{Key: "mlflow.runName", Value: "sweep-3"},
+			{Key: "uigraph.user", Value: "sayad@example.com"},
+			{Key: "stage", Value: "baseline"},
+		}},
+	}
+	item := runToItem(run, "")
+	if len(item.Tags) != 1 || item.Tags[0] != "stage: baseline" {
+		t.Errorf("Tags = %v, want [stage: baseline]", item.Tags)
+	}
+	if item.Name != "sweep-3" {
+		t.Errorf("Name = %q, want sweep-3", item.Name)
+	}
+}
+
+func TestDatasetToItemTags(t *testing.T) {
+	di := DatasetInput{
+		Tags: []KeyValue{
+			{Key: "mlflow.data.context", Value: "eval"},
+			{Key: "owner", Value: "search"},
+			{Key: "curated"},
+		},
+		Dataset: Dataset{Name: "holdout", Digest: "2c55db12"},
+	}
+	item := datasetToItem(di, "exp-1", "sayad@example.com")
+	if item.Context != "evaluation" {
+		t.Errorf("Context = %q, want evaluation", item.Context)
+	}
+	if len(item.Tags) != 2 {
+		t.Fatalf("Tags = %v, want 2 entries", item.Tags)
+	}
+	if item.Tags[0] != "owner: search" {
+		t.Errorf("Tags[0] = %q, want owner: search", item.Tags[0])
+	}
+	if item.Tags[1] != "curated" {
+		t.Errorf("Tags[1] = %q, want curated", item.Tags[1])
+	}
+}
+
 func TestIsEvaluationRun(t *testing.T) {
 	evaluation := Run{
 		Info: RunInfo{RunID: "eval-1"},
@@ -206,8 +273,11 @@ func TestEvaluationToItem(t *testing.T) {
 	if len(item.Metrics) != 2 {
 		t.Errorf("Metrics = %v, want 2 deduplicated entries", item.Metrics)
 	}
-	if item.Parameters["eval_seed"] != "1000" {
-		t.Errorf("Parameters[eval_seed] = %v, want 1000", item.Parameters["eval_seed"])
+	if len(item.Tags) != 1 || item.Tags[0] != "eval_seed: 1000" {
+		t.Errorf("Tags = %v, want [eval_seed: 1000]", item.Tags)
+	}
+	if _, ok := item.Parameters["eval_seed"]; ok {
+		t.Error("Parameters contains eval_seed, want run tags kept out of parameters")
 	}
 	if _, ok := item.Parameters["mlflow.user"]; ok {
 		t.Error("Parameters contains mlflow.user, want mlflow.* tags excluded")

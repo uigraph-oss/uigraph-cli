@@ -154,7 +154,7 @@ func inputContext(di DatasetInput) string {
 	return "training"
 }
 
-func experimentTags(tags []KeyValue) []string {
+func normalizeTags(tags []KeyValue) []string {
 	out := make([]string, 0, len(tags))
 	for _, tag := range tags {
 		if strings.HasPrefix(tag.Key, "mlflow.") || tag.Key == userTagKey {
@@ -180,7 +180,7 @@ func experimentToItem(exp *Experiment, projectName string) gateway.MLExperimentI
 		Name:        exp.Name,
 		Description: tagValue(exp.Tags, "mlflow.note.content"),
 		Status:      status,
-		Tags:        experimentTags(exp.Tags),
+		Tags:        normalizeTags(exp.Tags),
 		UserEmail:   tagValue(exp.Tags, userTagKey),
 	}
 }
@@ -227,6 +227,7 @@ func runToItem(run Run, experimentEmail string) gateway.MLRunItem {
 		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
 		EndedAt:            iso(run.Info.EndTime),
 		Notes:              tagValue(run.Data.Tags, "mlflow.note.content"),
+		Tags:               normalizeTags(run.Data.Tags),
 		Parameters:         parameters,
 		Metrics:            metrics,
 		UserEmail:          userEmail,
@@ -304,12 +305,6 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric, version
 	for _, p := range run.Data.Params {
 		parameters[p.Key] = p.Value
 	}
-	for _, t := range run.Data.Tags {
-		if strings.HasPrefix(t.Key, "mlflow.") || t.Key == userTagKey {
-			continue
-		}
-		parameters[t.Key] = t.Value
-	}
 	values := map[string]any{}
 	var datasetMLflowID *string
 	for _, m := range metrics {
@@ -331,6 +326,7 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric, version
 		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
 		EndedAt:            iso(run.Info.EndTime),
 		Evaluator:          tagValue(run.Data.Tags, "mlflow.user"),
+		Tags:               normalizeTags(run.Data.Tags),
 		Parameters:         parameters,
 		Metrics:            values,
 		UserEmail:          userEmail,
@@ -338,16 +334,12 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric, version
 }
 
 func modelToItem(model *RegisteredModel, projectName string, productionVersionMLflowID *string) gateway.MLModelItem {
-	tags := make([]string, 0, len(model.Tags))
-	for _, tag := range model.Tags {
-		tags = append(tags, tag.Key)
-	}
 	return gateway.MLModelItem{
 		MLflowID:                  model.Name,
 		ProjectName:               projectName,
 		Name:                      model.Name,
 		Description:               model.Description,
-		Tags:                      tags,
+		Tags:                      normalizeTags(model.Tags),
 		ProductionVersionMLflowID: productionVersionMLflowID,
 		CreatedAt:                 iso(model.CreationTimestamp),
 		UpdatedAt:                 iso(model.LastUpdatedTimestamp),
@@ -423,7 +415,8 @@ func loggedModelArtifactToItem(baseURL, runID, modelID string, f FileInfo, userE
 	}
 }
 
-func datasetToItem(d Dataset, experimentMLflowID, context, userEmail string) gateway.MLDatasetItem {
+func datasetToItem(di DatasetInput, experimentMLflowID, userEmail string) gateway.MLDatasetItem {
+	d := di.Dataset
 	id := d.Digest
 	if id == "" {
 		id = d.Name
@@ -435,10 +428,10 @@ func datasetToItem(d Dataset, experimentMLflowID, context, userEmail string) gat
 		Digest:             d.Digest,
 		Source:             d.Source,
 		SourceType:         d.SourceType,
-		Context:            context,
+		Context:            inputContext(di),
 		RowCount:           datasetRowCount(d.Profile),
 		Schema:             datasetSchema(d.Schema),
-		Tags:               map[string]string{},
+		Tags:               normalizeTags(di.Tags),
 		UserEmail:          userEmail,
 	}
 }

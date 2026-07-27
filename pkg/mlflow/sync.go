@@ -56,7 +56,7 @@ func BuildTraining(ctx context.Context, client *Client, project config.MLProject
 
 			if run.Inputs != nil {
 				for _, di := range run.Inputs.DatasetInputs {
-					item := datasetToItem(di.Dataset, run.Info.ExperimentID, inputContext(di), runEmail)
+					item := datasetToItem(di, run.Info.ExperimentID, runEmail)
 					key := run.Info.ExperimentID + "\x00" + item.MLflowID
 					if datasetSeen[key] {
 						continue

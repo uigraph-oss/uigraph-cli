@@ -67,6 +67,7 @@ type MLRunItem struct {
 	StartedAt          time.Time      `json:"startedAt"`
 	EndedAt            *time.Time     `json:"endedAt"`
 	Notes              string         `json:"notes"`
+	Tags               []string       `json:"tags"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
 	UserEmail          string         `json:"userEmail,omitempty"`
@@ -91,17 +92,17 @@ type MLSchemaField struct {
 }
 
 type MLDatasetItem struct {
-	MLflowID           string            `json:"mlflowId"`
-	ExperimentMLflowID string            `json:"experimentMlflowId"`
-	Name               string            `json:"name"`
-	Digest             string            `json:"digest"`
-	Source             string            `json:"source"`
-	SourceType         string            `json:"sourceType"`
-	Context            string            `json:"context"`
-	RowCount           int64             `json:"rowCount"`
-	Schema             []MLSchemaField   `json:"schema"`
-	Tags               map[string]string `json:"tags"`
-	UserEmail          string            `json:"userEmail,omitempty"`
+	MLflowID           string          `json:"mlflowId"`
+	ExperimentMLflowID string          `json:"experimentMlflowId"`
+	Name               string          `json:"name"`
+	Digest             string          `json:"digest"`
+	Source             string          `json:"source"`
+	SourceType         string          `json:"sourceType"`
+	Context            string          `json:"context"`
+	RowCount           int64           `json:"rowCount"`
+	Schema             []MLSchemaField `json:"schema"`
+	Tags               []string        `json:"tags"`
+	UserEmail          string          `json:"userEmail,omitempty"`
 }
 
 type MLEvaluationItem struct {
@@ -116,6 +117,7 @@ type MLEvaluationItem struct {
 	StartedAt          time.Time      `json:"startedAt"`
 	EndedAt            *time.Time     `json:"endedAt"`
 	Evaluator          string         `json:"evaluator"`
+	Tags               []string       `json:"tags"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
 	UserEmail          string         `json:"userEmail,omitempty"`
