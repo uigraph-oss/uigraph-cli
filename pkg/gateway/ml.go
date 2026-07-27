@@ -62,8 +62,8 @@ type MLRunItem struct {
 	DatasetMLflowID    *string        `json:"datasetMlflowId"`
 	Name               string         `json:"name"`
 	Status             string         `json:"status"`
-	StartedAt          *time.Time     `json:"startedAt"`
-	EndedAt            *time.Time     `json:"endedAt"`
+	StartedAt          time.Time      `json:"startedAt"`
+	EndedAt            time.Time      `json:"endedAt"`
 	Notes              string         `json:"notes"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`
@@ -108,7 +108,8 @@ type MLEvaluationItem struct {
 	Type               string         `json:"type"`
 	Description        string         `json:"description"`
 	Summary            string         `json:"summary"`
-	EvaluatedAt        *time.Time     `json:"evaluatedAt"`
+	StartedAt          time.Time      `json:"startedAt"`
+	EndedAt            time.Time      `json:"endedAt"`
 	Evaluator          string         `json:"evaluator"`
 	Parameters         map[string]any `json:"parameters"`
 	Metrics            map[string]any `json:"metrics"`

@@ -30,6 +30,13 @@ func iso(ms *int64) *time.Time {
 	return &t
 }
 
+func nowIfNil(t *time.Time) time.Time {
+	if t == nil {
+		return time.Now().UTC()
+	}
+	return *t
+}
+
 func extension(name string) string {
 	if !strings.Contains(name, ".") {
 		return ""
@@ -211,8 +218,8 @@ func runToItem(run Run) gateway.MLRunItem {
 		DatasetMLflowID:    firstDatasetMLflowID(run),
 		Name:               name,
 		Status:             status,
-		StartedAt:          iso(run.Info.StartTime),
-		EndedAt:            iso(run.Info.EndTime),
+		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
+		EndedAt:            nowIfNil(iso(run.Info.EndTime)),
 		Notes:              tagValue(run.Data.Tags, "mlflow.note.content"),
 		Parameters:         parameters,
 		Metrics:            metrics,
@@ -301,10 +308,6 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 			datasetMLflowID = &digest
 		}
 	}
-	evaluatedAt := iso(run.Info.EndTime)
-	if evaluatedAt == nil {
-		evaluatedAt = iso(run.Info.StartTime)
-	}
 	return gateway.MLEvaluationItem{
 		MLflowID:           fmt.Sprintf("%s/%s", versionMLflowID, run.Info.RunID),
 		VersionMLflowID:    versionMLflowID,
@@ -314,7 +317,8 @@ func evaluationToItem(run Run, versionMLflowID string, metrics []Metric) gateway
 		Type:               "Offline Benchmark",
 		Description:        tagValue(run.Data.Tags, "mlflow.note.content"),
 		Summary:            "",
-		EvaluatedAt:        evaluatedAt,
+		StartedAt:          nowIfNil(iso(run.Info.StartTime)),
+		EndedAt:            nowIfNil(iso(run.Info.EndTime)),
 		Evaluator:          tagValue(run.Data.Tags, "mlflow.user"),
 		Parameters:         parameters,
 		Metrics:            values,

@@ -1,6 +1,9 @@
 package mlflow
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func ptr[T any](v T) *T { return &v }
 
@@ -212,7 +215,42 @@ func TestEvaluationToItem(t *testing.T) {
 	if item.DatasetMLflowID == nil || *item.DatasetMLflowID != "2c55db12" {
 		t.Errorf("DatasetMLflowID = %v, want 2c55db12", item.DatasetMLflowID)
 	}
-	if item.EvaluatedAt == nil {
-		t.Error("EvaluatedAt = nil, want run end time")
+	if !item.EndedAt.Equal(time.UnixMilli(end).UTC()) {
+		t.Errorf("EndedAt = %v, want run end time", item.EndedAt)
+	}
+	if item.StartedAt.IsZero() {
+		t.Error("StartedAt is zero, want fallback to current time")
+	}
+}
+
+func TestEvaluationToItemMissingTimestamps(t *testing.T) {
+	before := time.Now().UTC()
+	run := Run{
+		Info: RunInfo{RunID: "47e63bc7", ExperimentID: "813"},
+		Data: RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "eval-Saba-v2"}}},
+	}
+
+	item := evaluationToItem(run, "Saba/2", nil)
+	if item.StartedAt.Before(before) {
+		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
+	}
+	if item.EndedAt.Before(before) {
+		t.Errorf("EndedAt = %v, want at or after %v", item.EndedAt, before)
+	}
+}
+
+func TestRunToItemMissingTimestamps(t *testing.T) {
+	before := time.Now().UTC()
+	run := Run{
+		Info: RunInfo{RunID: "run-2", ExperimentID: "exp-1", Status: "RUNNING"},
+		Data: RunData{Tags: []KeyValue{{Key: "mlflow.runName", Value: "windy-otter"}}},
+	}
+
+	item := runToItem(run)
+	if item.StartedAt.Before(before) {
+		t.Errorf("StartedAt = %v, want at or after %v", item.StartedAt, before)
+	}
+	if item.EndedAt.Before(before) {
+		t.Errorf("EndedAt = %v, want at or after %v", item.EndedAt, before)
 	}
 }
