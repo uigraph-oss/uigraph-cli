@@ -294,19 +294,22 @@ func TestConfigValidateDependencies(t *testing.T) {
 		{
 			name: "valid dependencies",
 			deps: []DependencyRef{
-				{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"CreatePayment"}},
-				{Name: "orders-store", Service: "orders-db", Type: "database", Criticality: "soft", DatabaseName: "orders"},
-				{Name: "unknown", Service: "external", Criticality: "soft"},
+				{Name: "payments", Service: "stripe", Direction: "downstream", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"CreatePayment"}},
+				{Name: "orders-store", Service: "orders-db", Direction: "downstream", Type: "database", Criticality: "soft", DatabaseName: "orders"},
+				{Name: "storefront-inbound", Service: "storefront", Direction: "upstream", Criticality: "soft"},
+				{Name: "unknown", Service: "external", Direction: "downstream", Criticality: "soft"},
 			},
 		},
-		{name: "missing name", deps: []DependencyRef{{Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api"}}, wantErr: true, errMsg: "dependencies[0].name is required"},
-		{name: "invalid type", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "rest", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].type must be one of"},
-		{name: "invalid criticality", deps: []DependencyRef{{Name: "events", Service: "sns", Type: "http", Criticality: "optional"}}, wantErr: true, errMsg: "dependencies[0].criticality must be one of"},
-		{name: "missing service", deps: []DependencyRef{{Name: "events", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service is required"},
-		{name: "self dependency", deps: []DependencyRef{{Name: "self", Service: "Test Service", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service must not reference the current service"},
-		{name: "duplicate name", deps: []DependencyRef{{Name: "dup", Service: "svc-a", Criticality: "hard"}, {Name: "dup", Service: "svc-b", Type: "http", Criticality: "soft", APIGroupName: "api"}}, wantErr: true, errMsg: "dependencies[1].name must be unique"},
-		{name: "empty api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{""}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[0] is required"},
-		{name: "duplicate api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"op1", "op1"}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[1] must be unique"},
+		{name: "missing name", deps: []DependencyRef{{Service: "stripe", Direction: "downstream", Type: "http", Criticality: "hard", APIGroupName: "payments-api"}}, wantErr: true, errMsg: "dependencies[0].name is required"},
+		{name: "missing direction", deps: []DependencyRef{{Name: "payments", Service: "stripe", Type: "http", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].direction is required"},
+		{name: "invalid direction", deps: []DependencyRef{{Name: "payments", Service: "stripe", Direction: "up", Type: "http", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].direction must be one of"},
+		{name: "invalid type", deps: []DependencyRef{{Name: "payments", Service: "stripe", Direction: "downstream", Type: "rest", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].type must be one of"},
+		{name: "invalid criticality", deps: []DependencyRef{{Name: "events", Service: "sns", Direction: "downstream", Type: "http", Criticality: "optional"}}, wantErr: true, errMsg: "dependencies[0].criticality must be one of"},
+		{name: "missing service", deps: []DependencyRef{{Name: "events", Direction: "downstream", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service is required"},
+		{name: "self dependency", deps: []DependencyRef{{Name: "self", Service: "Test Service", Direction: "downstream", Criticality: "hard"}}, wantErr: true, errMsg: "dependencies[0].service must not reference the current service"},
+		{name: "duplicate name", deps: []DependencyRef{{Name: "dup", Service: "svc-a", Direction: "downstream", Criticality: "hard"}, {Name: "dup", Service: "svc-b", Direction: "downstream", Type: "http", Criticality: "soft", APIGroupName: "api"}}, wantErr: true, errMsg: "dependencies[1].name must be unique"},
+		{name: "empty api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Direction: "downstream", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{""}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[0] is required"},
+		{name: "duplicate api endpoint name rejected", deps: []DependencyRef{{Name: "payments", Service: "stripe", Direction: "downstream", Type: "http", Criticality: "hard", APIGroupName: "payments-api", APIEndpointNames: []string{"op1", "op1"}}}, wantErr: true, errMsg: "dependencies[0].apiEndpointNames[1] must be unique"},
 	}
 
 	for _, tt := range tests {

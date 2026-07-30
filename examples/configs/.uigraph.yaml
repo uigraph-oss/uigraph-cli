@@ -35,6 +35,7 @@ apis:
 dependencies:
   - name: gateway-sync-api
     service: UIGraph Gateway
+    direction: downstream
     type: http
     criticality: hard
     description: Sends synchronized catalog metadata to the gateway.

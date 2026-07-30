@@ -176,6 +176,7 @@ type APIRef struct {
 type DependencyRef struct {
 	Name             string   `yaml:"name" json:"name"`
 	Service          string   `yaml:"service" json:"service"`
+	Direction        string   `yaml:"direction" json:"direction"`
 	Type             string   `yaml:"type,omitempty" json:"type,omitempty"`
 	Criticality      string   `yaml:"criticality" json:"criticality"`
 	Description      string   `yaml:"description,omitempty" json:"description,omitempty"`
@@ -392,6 +393,7 @@ func (c *Config) Validate() error {
 
 	validDependencyTypes := map[string]bool{"http": true, "graphql": true, "grpc": true, "database": true}
 	validCriticalities := map[string]bool{"hard": true, "soft": true}
+	validDirections := map[string]bool{"upstream": true, "downstream": true}
 	dependencyNames := map[string]bool{}
 	for i, dependency := range c.Dependencies {
 		if dependency.Name == "" {
@@ -407,6 +409,12 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("dependencies[%d].name must be unique", i)
 		}
 		dependencyNames[dependency.Name] = true
+		if dependency.Direction == "" {
+			return fmt.Errorf("dependencies[%d].direction is required", i)
+		}
+		if !validDirections[dependency.Direction] {
+			return fmt.Errorf("dependencies[%d].direction must be one of: upstream, downstream", i)
+		}
 		if dependency.Type != "" && !validDependencyTypes[dependency.Type] {
 			return fmt.Errorf("dependencies[%d].type must be one of: http, graphql, grpc, database", i)
 		}
