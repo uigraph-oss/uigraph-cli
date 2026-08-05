@@ -13,6 +13,25 @@ uigraph-sync:
   tags:
     - docker
 
+# Records the release on the service timeline at the moment the tag is cut,
+# which is when the notes and commit range are freshest.
+uigraph-release:
+  stage: deploy
+  image: golang:1.23
+  # `uigraph release` reads the previous tag and the commit range, so it needs
+  # the full history, not GitLab's default shallow clone.
+  variables:
+    GIT_DEPTH: 0
+    UIGRAPH_TOKEN: $UIGRAPH_TOKEN
+  script:
+    - go install github.com/uigraph-oss/uigraph-cli@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
+    - uigraph release
+  rules:
+    - if: $CI_COMMIT_TAG
+  tags:
+    - docker
+
 # Optional: Run on merge requests with dry-run
 uigraph-sync-dry-run:
   stage: test

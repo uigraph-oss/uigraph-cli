@@ -19,6 +19,7 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 	"github.com/uigraph-oss/uigraph-cli/pkg/git"
 	"github.com/uigraph-oss/uigraph-cli/pkg/mlflow"
+	"github.com/uigraph-oss/uigraph-cli/pkg/timeline"
 )
 
 var (
@@ -297,6 +298,34 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// 8b. Sync cost category tags
+	costTagsCreated := 0
+	costTagsDeleted := 0
+	costTagsUnchanged := 0
+	if cfg.CostTags != nil {
+		fmt.Printf("\n💰 Syncing %d cost %s...\n", len(cfg.CostTags), pluralize(len(cfg.CostTags), "tag", "tags"))
+		req := gateway.CostTagsSyncRequest{
+			ServiceName: cfg.Service.Name,
+			Tags:        cfg.CostTags,
+		}
+		if dryRun {
+			fmt.Println("\n=== DRY RUN: Cost Tags ===")
+			fmt.Println("  (config owns the full set; rules not listed here are deleted)")
+			for _, tag := range cfg.CostTags {
+				fmt.Printf("  • %s=%s\n", tag.Key, tag.Value)
+			}
+		} else {
+			resp, err := client.SyncCostTags(ctx, req)
+			if err != nil {
+				exitGatewayErrorErr("sync cost tags", err)
+			}
+			costTagsCreated = resp.Created
+			costTagsDeleted = resp.Deleted
+			costTagsUnchanged = resp.Unchanged
+			fmt.Printf("✓ Cost tags synced: %d created, %d deleted, %d unchanged\n", resp.Created, resp.Deleted, resp.Unchanged)
+		}
+	}
+
 	// 9. Sync architecture diagrams
 	if len(cfg.ArchitectureDiagrams) > 0 {
 		fmt.Printf("\n📊 Syncing %d architecture %s...\n", len(cfg.ArchitectureDiagrams), pluralize(len(cfg.ArchitectureDiagrams), "diagram", "diagrams"))
@@ -344,6 +373,8 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// 10. Sync test packs and test cases
+	screenshotsUploaded := 0
+	screenshotsSkipped := 0
 	totalTestCases := 0
 	for _, pack := range cfg.TestPacks {
 		totalTestCases += len(pack.TestCases)
@@ -382,6 +413,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 				fmt.Printf("  Name: %s, Type: %s, TestCases: %d\n", pack.Name, pack.Type, len(pack.TestCases))
 				for _, tc := range pack.TestCases {
 					fmt.Printf("    - %s (type: %s, order: %g)\n", tc.Title, tc.Type, tc.Order)
+					if len(tc.Screenshots) > 0 {
+						fmt.Printf("      %d %s\n", len(tc.Screenshots), pluralize(len(tc.Screenshots), "screenshot", "screenshots"))
+					}
 				}
 			} else {
 				packResp, err := client.SyncTestPack(ctx, packReq)
@@ -474,6 +508,42 @@ func runSync(cmd *cobra.Command, args []string) error {
 					}
 					if tc.Postconditions != "" {
 						tcPayload.Postconditions = &tc.Postconditions
+					}
+
+					// Screenshots resolve to asset IDs before the test case is
+					// written, so one sync call carries them — no follow-up update.
+					for _, shot := range tc.Screenshots {
+						content, err := os.ReadFile(shot)
+						if err != nil {
+							fmt.Fprintf(os.Stderr, "    Error reading screenshot %s: %v\n", shot, err)
+							os.Exit(1)
+						}
+						sum := sha256.Sum256(content)
+						prepResp, err := client.PrepareTestCaseScreenshot(ctx, gateway.TestCaseScreenshotPrepareRequest{
+							ServiceName:   serviceName,
+							TestPackID:    packResp.TestPackID,
+							TestCaseTitle: tc.Title,
+							ContentHash:   hex.EncodeToString(sum[:]),
+							FileName:      filepath.Base(shot),
+						})
+						if err != nil {
+							exitGatewayErrorErr(fmt.Sprintf("prepare screenshot %q", shot), err)
+						}
+
+						switch prepResp.Action {
+						case "skip":
+							screenshotsSkipped++
+						case "upload":
+							if err := uploadToS3(ctx, prepResp.UploadURL, content, "image", shot); err != nil {
+								fmt.Fprintf(os.Stderr, "    Error uploading screenshot %s: %v\n", shot, err)
+								os.Exit(1)
+							}
+							screenshotsUploaded++
+						default:
+							fmt.Fprintf(os.Stderr, "    Error: unexpected screenshot prepare action %q for %s\n", prepResp.Action, shot)
+							os.Exit(1)
+						}
+						tcPayload.ScreenshotURLs = append(tcPayload.ScreenshotURLs, prepResp.AssetID)
 					}
 
 					tcReq := gateway.TestCaseSyncRequest{
@@ -572,6 +642,39 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 				fmt.Printf("    ✓ Synced\n")
 			}
+		}
+	}
+
+	// 11b. Sync timeline events scanned from the repo
+	timelineEvents := []timeline.Event{}
+	timelineCreated := 0
+	timelineUpdated := 0
+	if cfg.Timeline != nil {
+		scanned, err := timeline.Scan(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Timeline scan error: %v\n", err)
+			os.Exit(1)
+		}
+		timelineEvents = scanned
+
+		fmt.Printf("\n🕓 Syncing %d timeline %s...\n", len(timelineEvents), pluralize(len(timelineEvents), "event", "events"))
+		if dryRun {
+			fmt.Println("\n=== DRY RUN: Timeline Events ===")
+			for _, event := range timelineEvents {
+				fmt.Printf("  • %s · %s · %s\n", event.Type, event.Title, event.EventDate.Format("2006-01-02"))
+			}
+		} else if len(timelineEvents) > 0 {
+			resp, err := client.SyncTimeline(ctx, gateway.TimelineSyncRequest{
+				ServiceName: cfg.Service.Name,
+				CommitHash:  gitMeta.CommitHash,
+				Events:      timelineEvents,
+			})
+			if err != nil {
+				exitGatewayErrorErr("sync timeline events", err)
+			}
+			timelineCreated = resp.Created
+			timelineUpdated = resp.Updated
+			fmt.Printf("✓ Timeline synced: %d created, %d updated\n", resp.Created, resp.Updated)
 		}
 	}
 
@@ -890,9 +993,12 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Service Dependencies: %d\n", len(cfg.Dependencies))
 	fmt.Printf("Test Packs: %d\n", len(cfg.TestPacks))
 	fmt.Printf("Test Cases: %d\n", totalTestCases)
+	fmt.Printf("Screenshots: %d uploaded, %d skipped\n", screenshotsUploaded, screenshotsSkipped)
 	fmt.Printf("Databases: %d\n", len(cfg.Databases))
 	fmt.Printf("Queries: %d\n", len(cfg.Queries))
 	fmt.Printf("Docs: %d\n", len(cfg.Docs))
+	fmt.Printf("Cost Tags: %d (%d created, %d deleted, %d unchanged)\n", len(cfg.CostTags), costTagsCreated, costTagsDeleted, costTagsUnchanged)
+	fmt.Printf("Timeline Events: %d (%d created, %d updated)\n", len(timelineEvents), timelineCreated, timelineUpdated)
 	fmt.Printf("Maps: %d (Frames: %d, Focal Points: %d, Components: %d)\n", len(cfg.Maps), totalFrames, totalFocalPoints, totalComponents)
 	fmt.Printf("ML Projects: %d (Models: %d, Experiments: %d)\n", len(cfg.ML), totalMLModels, totalMLExperiments)
 	fmt.Printf("Duration: %s\n", formatDuration(elapsed))

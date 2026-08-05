@@ -11,6 +11,7 @@ import (
 
 	"github.com/uigraph-oss/uigraph-cli/pkg/config"
 	"github.com/uigraph-oss/uigraph-cli/pkg/git"
+	"github.com/uigraph-oss/uigraph-cli/pkg/timeline"
 )
 
 type Client struct {
@@ -170,6 +171,22 @@ type TestCaseInfoPayload struct {
 
 	BaselineRunResultID *string `json:"baselineRunResultId,omitempty"`
 	IsCritical          bool    `json:"isCritical"`
+
+	ScreenshotURLs []string `json:"screenshotUrls,omitempty"`
+}
+
+type TestCaseScreenshotPrepareRequest struct {
+	ServiceName   string `json:"serviceName"`
+	TestPackID    string `json:"testPackId"`
+	TestCaseTitle string `json:"testCaseTitle"`
+	ContentHash   string `json:"contentHash"`
+	FileName      string `json:"fileName"`
+}
+
+type TestCaseScreenshotPrepareResponse struct {
+	Action    string `json:"action"`
+	AssetID   string `json:"assetId"`
+	UploadURL string `json:"uploadUrl,omitempty"`
 }
 
 type TestCaseSyncResponse struct {
@@ -241,6 +258,29 @@ type SavedQuerySyncResponse struct {
 	SourceRef string `json:"sourceRef"`
 	ID        string `json:"id"`
 	Created   bool   `json:"created"`
+}
+
+type CostTagsSyncRequest struct {
+	ServiceName string           `json:"serviceName"`
+	Tags        []config.CostTag `json:"tags"`
+}
+
+type CostTagsSyncResponse struct {
+	Created   int `json:"created"`
+	Deleted   int `json:"deleted"`
+	Unchanged int `json:"unchanged"`
+}
+
+type TimelineSyncRequest struct {
+	ServiceName string           `json:"serviceName"`
+	CommitHash  string           `json:"commitHash,omitempty"`
+	Events      []timeline.Event `json:"events"`
+}
+
+type TimelineSyncResponse struct {
+	Synced  int `json:"synced"`
+	Created int `json:"created"`
+	Updated int `json:"updated"`
 }
 
 type MapSyncRequest struct {
@@ -901,6 +941,123 @@ func (c *Client) SyncSavedQuery(ctx context.Context, req SavedQuerySyncRequest) 
 	}
 
 	var syncResp SavedQuerySyncResponse
+	if err := json.Unmarshal(respBody, &syncResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &syncResp, nil
+}
+
+func (c *Client) SyncCostTags(ctx context.Context, req CostTagsSyncRequest) (*CostTagsSyncResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/service/cost-tags", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var syncResp CostTagsSyncResponse
+	if err := json.Unmarshal(respBody, &syncResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &syncResp, nil
+}
+
+func (c *Client) PrepareTestCaseScreenshot(ctx context.Context, req TestCaseScreenshotPrepareRequest) (*TestCaseScreenshotPrepareResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/service/test-case/screenshot/prepare", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var prepareResp TestCaseScreenshotPrepareResponse
+	if err := json.Unmarshal(respBody, &prepareResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &prepareResp, nil
+}
+
+func (c *Client) SyncTimeline(ctx context.Context, req TimelineSyncRequest) (*TimelineSyncResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/service/timeline", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var syncResp TimelineSyncResponse
 	if err := json.Unmarshal(respBody, &syncResp); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
