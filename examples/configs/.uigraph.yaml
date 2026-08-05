@@ -88,7 +88,42 @@ testPacks:
         apiGroupName: uigraph-cli-openapi-spec
         operationId: registerUser
         expectedStatusCode: 201
+      # `screenshots` are reference images for the test case definition. They are
+      # keyed by content, so an unchanged image is skipped instead of re-uploaded.
+      - title: Login screen renders the SSO button
+        type: manual
+        order: 2
+        screenshots:
+          - .uigraph/screenshots/login-sso.png
     testCasesPath: .uigraph/tests/adapter-smoke.yaml
+
+# Cost category tags decide which cloud resources roll up into this service's
+# cost dashboard.
+# Omitting `costTags` entirely means "not managed by the CLI" — existing rules
+# are left alone. Including it means this file owns the full set: a rule in the
+# backend that is not listed here is deleted, and `costTags: []` clears them all.
+costTags:
+  - key: team
+    value: uigraph
+  - key: Service
+    value: uigraph-cli
+
+# Timeline sources scanned on every `uigraph sync`. Each entry is upserted by
+# its file path (or version), so editing or retitling a file updates the
+# existing event instead of creating a duplicate.
+timeline:
+  decisions:
+    paths:
+      - docs/adr/*.md
+      - docs/decisions/*.md
+  incidents:
+    paths:
+      - docs/postmortems/*.md
+  releases:
+    # Fallback only, for repos that do not cut releases through CI. Omit this if
+    # your pipeline runs `uigraph release`, or the two sources will compete for
+    # the same release event.
+    changelogPath: CHANGELOG.md
 
 ml:
   - name: Facebook

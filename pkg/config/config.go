@@ -3,9 +3,20 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+var validScreenshotExt = map[string]bool{
+	".png":  true,
+	".jpg":  true,
+	".jpeg": true,
+	".gif":  true,
+	".webp": true,
+	".svg":  true,
+}
 
 type Config struct {
 	Version              int              `yaml:"version"`
@@ -21,6 +32,29 @@ type Config struct {
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
 	ML                   []MLProjectRef   `yaml:"ml,omitempty"`
+	CostTags             []CostTag        `yaml:"costTags,omitempty"`
+	Timeline             *TimelineRef     `yaml:"timeline,omitempty"`
+}
+
+// A nil CostTags means "not managed by the CLI". A non-nil CostTags means the
+// file owns the full set, so an empty list clears every rule.
+type CostTag struct {
+	Key   string `yaml:"key" json:"key"`
+	Value string `yaml:"value" json:"value"`
+}
+
+type TimelineRef struct {
+	Decisions TimelineScanRef `yaml:"decisions,omitempty"`
+	Incidents TimelineScanRef `yaml:"incidents,omitempty"`
+	Releases  TimelineReleaseRef `yaml:"releases,omitempty"`
+}
+
+type TimelineScanRef struct {
+	Paths []string `yaml:"paths,omitempty"`
+}
+
+type TimelineReleaseRef struct {
+	ChangelogPath string `yaml:"changelogPath,omitempty"`
 }
 
 type MLProjectRef struct {
@@ -250,6 +284,8 @@ type TestCaseRef struct {
 	Postconditions   string    `yaml:"postconditions,omitempty"`
 	RequiresEvidence bool      `yaml:"requiresEvidence"`
 	IsCritical       bool      `yaml:"isCritical"`
+
+	Screenshots []string `yaml:"screenshots,omitempty"`
 }
 
 type DocRef struct {
@@ -370,6 +406,12 @@ func (c *Config) Validate() error {
 		if len(c.Dependencies) > 0 {
 			return fmt.Errorf("service is required to sync dependencies; configs without a service may only sync maps and frames")
 		}
+		if c.CostTags != nil {
+			return fmt.Errorf("service is required to sync costTags; configs without a service may only sync maps and frames")
+		}
+		if c.Timeline != nil {
+			return fmt.Errorf("service is required to sync timeline; configs without a service may only sync maps and frames")
+		}
 	}
 
 	for i, api := range c.APIs {
@@ -474,6 +516,57 @@ func (c *Config) Validate() error {
 			}
 			if tc.Title == "" {
 				return fmt.Errorf("testPacks[%d].testCases[%d].title is required", i, j)
+			}
+			for k, shot := range tc.Screenshots {
+				if shot == "" {
+					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] is required", i, j, k)
+				}
+				info, err := os.Stat(shot)
+				if os.IsNotExist(err) {
+					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] file does not exist: %s", i, j, k, shot)
+				}
+				if err != nil {
+					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d]: %w", i, j, k, err)
+				}
+				if info.IsDir() {
+					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] must be a file, not a directory: %s", i, j, k, shot)
+				}
+				if !validScreenshotExt[strings.ToLower(filepath.Ext(shot))] {
+					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] must be an image (.png, .jpg, .jpeg, .gif, .webp, .svg): %s", i, j, k, shot)
+				}
+			}
+		}
+	}
+
+	tagPairs := map[string]bool{}
+	for i, tag := range c.CostTags {
+		if tag.Key == "" {
+			return fmt.Errorf("costTags[%d].key is required", i)
+		}
+		if tag.Value == "" {
+			return fmt.Errorf("costTags[%d].value is required", i)
+		}
+		pair := tag.Key + "=" + tag.Value
+		if tagPairs[pair] {
+			return fmt.Errorf("costTags[%d]: duplicate key/value pair %q", i, pair)
+		}
+		tagPairs[pair] = true
+	}
+
+	if c.Timeline != nil {
+		for i, p := range c.Timeline.Decisions.Paths {
+			if p == "" {
+				return fmt.Errorf("timeline.decisions.paths[%d] is required", i)
+			}
+		}
+		for i, p := range c.Timeline.Incidents.Paths {
+			if p == "" {
+				return fmt.Errorf("timeline.incidents.paths[%d] is required", i)
+			}
+		}
+		if c.Timeline.Releases.ChangelogPath != "" {
+			if _, err := os.Stat(c.Timeline.Releases.ChangelogPath); os.IsNotExist(err) {
+				return fmt.Errorf("timeline.releases.changelogPath file does not exist: %s", c.Timeline.Releases.ChangelogPath)
 			}
 		}
 	}

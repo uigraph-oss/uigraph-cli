@@ -86,10 +86,23 @@ uigraph sync --config ./config/.uigraph.yaml
 uigraph sync --dry-run
 ```
 
+Record a release from a tag-triggered pipeline job. The version, notes and
+commit range are resolved from git at the moment the tag is cut:
+
+```bash
+uigraph release
+uigraph release --version v1.2.3 --notes-file ./RELEASE_NOTES.md
+uigraph release --dry-run
+```
+
 ## What It Supports
 
 - Syncing service metadata to UiGraph
 - Syncing API specs such as OpenAPI, GraphQL, and gRPC
+- Syncing cost category tags that decide which cloud resources roll up into a service's costs
+- Syncing test packs and test cases, including reference screenshots
+- Scanning the repo for timeline events — ADRs, postmortems, and CHANGELOG releases
+- Recording a release on the timeline from a CI/CD tag job via `uigraph release`
 - Running cleanly in CI/CD pipelines
 - Capturing git metadata during sync
 

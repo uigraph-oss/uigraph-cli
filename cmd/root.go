@@ -26,4 +26,5 @@ func Execute(ctx context.Context) {
 func init() {
 	// Register subcommands
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(releaseCmd)
 }

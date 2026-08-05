@@ -3,11 +3,13 @@ name: UiGraph Sync with Dry Run on PR
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
     branches: [main, master]
 
 jobs:
   uigraph-sync:
+    if: "!startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,3 +36,36 @@ jobs:
           UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
         run: |
           uigraph sync
+
+  # Records the release on the service timeline at the moment the tag is cut,
+  # which is when the notes and commit range are freshest.
+  uigraph-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `uigraph release` reads the previous tag and the commit range, so it
+          # needs the full history, not the default shallow clone.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Install UiGraph CLI
+        run: |
+          go install github.com/uigraph-oss/uigraph-cli@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Preview the release event
+        env:
+          UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
+        run: |
+          uigraph release --dry-run
+
+      - name: Record release on UiGraph timeline
+        env:
+          UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
+        run: |
+          uigraph release
