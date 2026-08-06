@@ -8,8 +8,8 @@ It is designed for CI/CD workflows and works with a repository-level `.uigraph.y
 
 Full setup, configuration, and usage guides live in the official UiGraph docs:
 
-- [UiGraph Documentation](https://docs.uigraph.app/)
-- [UiGraph CLI Docs](https://docs.uigraph.app/uigraph-cli)
+- [UIGraph Documentation](https://docs.uigraph.app/)
+- [UIGraph CLI Docs](https://docs.uigraph.app/uigraph-cli)
 
 This README stays intentionally brief. The hosted docs are the source of truth for configuration, supported inputs, and end-to-end workflows.
 
