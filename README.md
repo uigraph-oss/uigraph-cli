@@ -1,4 +1,4 @@
-# UiGraph CLI
+# UIGraph CLI
 
 `uigraph-cli` syncs service metadata and API specifications from your repository to UiGraph.
 
