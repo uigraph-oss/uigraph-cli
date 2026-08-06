@@ -97,7 +97,7 @@ uigraph release --dry-run
 
 ## What It Supports
 
-- Syncing service metadata to UiGraph
+- Syncing service metadata to UIGraph
 - Syncing API specs such as OpenAPI, GraphQL, and gRPC
 - Syncing cost category tags that decide which cloud resources roll up into a service's costs
 - Syncing test packs and test cases, including reference screenshots
