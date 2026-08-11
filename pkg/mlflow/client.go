@@ -16,6 +16,9 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
+	Verbose    bool
+	Elapsed    time.Duration
+	Requests   int
 }
 
 func NewClient(baseURL, token string) *Client {
@@ -175,6 +178,7 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
+	start := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("mlflow request failed: %w", err)
@@ -183,6 +187,12 @@ func (c *Client) do(req *http.Request) ([]byte, error) {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read mlflow response: %w", err)
+	}
+	took := time.Since(start)
+	c.Elapsed += took
+	c.Requests++
+	if c.Verbose {
+		fmt.Printf("        [mlflow] %s %s %s\n", req.Method, req.URL.Path, took.Round(time.Millisecond))
 	}
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("mlflow error %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))

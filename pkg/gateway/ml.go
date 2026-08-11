@@ -147,6 +147,7 @@ func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
 
 	httpReq.Header.Set("X-API-Token", c.token)
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -156,6 +157,9 @@ func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if c.Verbose {
+		fmt.Printf("        [gateway] GET /v1/sync/ml/projects %s\n", time.Since(start).Round(time.Millisecond))
 	}
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
@@ -189,6 +193,7 @@ func (c *Client) postML(ctx context.Context, path string, payload any) ([]byte, 
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-API-Token", c.token)
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
@@ -198,6 +203,9 @@ func (c *Client) postML(ctx context.Context, path string, payload any) ([]byte, 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if c.Verbose {
+		fmt.Printf("        [gateway] POST %s %s\n", path, time.Since(start).Round(time.Millisecond))
 	}
 
 	if resp.StatusCode >= 400 {

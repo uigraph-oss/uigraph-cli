@@ -17,6 +17,7 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
+	Verbose    bool
 }
 
 func NewClient(baseURL, token string) *Client {
