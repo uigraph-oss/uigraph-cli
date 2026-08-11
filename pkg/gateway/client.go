@@ -21,8 +21,8 @@ type Client struct {
 
 func NewClient(baseURL, token string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		token:   token,
+		baseURL:    baseURL,
+		token:      token,
 		httpClient: &http.Client{},
 	}
 }

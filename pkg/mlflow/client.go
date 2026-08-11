@@ -115,15 +115,16 @@ type RegisteredModel struct {
 }
 
 type ModelVersion struct {
-	Name              string     `json:"name"`
-	Version           string     `json:"version"`
-	CreationTimestamp *int64     `json:"creation_timestamp"`
-	CurrentStage      string     `json:"current_stage"`
-	Description       string     `json:"description"`
-	RunID             string     `json:"run_id"`
-	Source            string     `json:"source"`
-	Status            string     `json:"status"`
-	Tags              []KeyValue `json:"tags"`
+	Name                 string     `json:"name"`
+	Version              string     `json:"version"`
+	CreationTimestamp    *int64     `json:"creation_timestamp"`
+	LastUpdatedTimestamp *int64     `json:"last_updated_timestamp"`
+	CurrentStage         string     `json:"current_stage"`
+	Description          string     `json:"description"`
+	RunID                string     `json:"run_id"`
+	Source               string     `json:"source"`
+	Status               string     `json:"status"`
+	Tags                 []KeyValue `json:"tags"`
 }
 
 type LoggedModelInfo struct {
@@ -205,8 +206,7 @@ func (c *Client) GetExperimentByName(ctx context.Context, name string) (*Experim
 	return &out.Experiment, nil
 }
 
-func (c *Client) SearchRuns(ctx context.Context, experimentID string) ([]Run, error) {
-	var runs []Run
+func (c *Client) SearchRuns(ctx context.Context, experimentID string, since time.Time, page func([]Run) error) error {
 	token := ""
 	for {
 		reqBody := map[string]any{
@@ -214,27 +214,32 @@ func (c *Client) SearchRuns(ctx context.Context, experimentID string) ([]Run, er
 			"run_view_type":  "ALL",
 			"max_results":    1000,
 		}
+		if !since.IsZero() {
+			reqBody["filter"] = fmt.Sprintf("attributes.start_time > %d", since.UnixMilli())
+			reqBody["order_by"] = []string{"attributes.start_time DESC"}
+		}
 		if token != "" {
 			reqBody["page_token"] = token
 		}
 		body, err := c.post(ctx, "runs/search", reqBody)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var out struct {
 			Runs          []Run  `json:"runs"`
 			NextPageToken string `json:"next_page_token"`
 		}
 		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("failed to parse runs: %w", err)
+			return fmt.Errorf("failed to parse runs: %w", err)
 		}
-		runs = append(runs, out.Runs...)
+		if err := page(out.Runs); err != nil {
+			return err
+		}
 		token = out.NextPageToken
 		if token == "" {
-			break
+			return nil
 		}
 	}
-	return runs, nil
 }
 
 func (c *Client) GetRun(ctx context.Context, runID string) (*Run, error) {
@@ -352,8 +357,7 @@ func (c *Client) GetRegisteredModel(ctx context.Context, name string) (*Register
 	return &out.RegisteredModel, nil
 }
 
-func (c *Client) ModelVersions(ctx context.Context, modelName string) ([]ModelVersion, error) {
-	var versions []ModelVersion
+func (c *Client) ModelVersions(ctx context.Context, modelName string, page func([]ModelVersion) error) error {
 	token := ""
 	for {
 		q := url.Values{}
@@ -364,20 +368,21 @@ func (c *Client) ModelVersions(ctx context.Context, modelName string) ([]ModelVe
 		}
 		body, err := c.get(ctx, "model-versions/search", q)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		var out struct {
 			ModelVersions []ModelVersion `json:"model_versions"`
 			NextPageToken string         `json:"next_page_token"`
 		}
 		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("failed to parse model versions: %w", err)
+			return fmt.Errorf("failed to parse model versions: %w", err)
 		}
-		versions = append(versions, out.ModelVersions...)
+		if err := page(out.ModelVersions); err != nil {
+			return err
+		}
 		token = out.NextPageToken
 		if token == "" {
-			break
+			return nil
 		}
 	}
-	return versions, nil
 }

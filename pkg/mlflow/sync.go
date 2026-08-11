@@ -3,100 +3,152 @@ package mlflow
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uigraph-oss/uigraph-cli/pkg/config"
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 )
 
-type TrainingPayload struct {
-	Experiments []gateway.MLExperimentItem
-	Datasets    []gateway.MLDatasetItem
-	Runs        []gateway.MLRunItem
-	Artifacts   []gateway.MLArtifactItem
+type TrainingSink struct {
+	Experiment func(gateway.MLExperimentItem) error
+	Dataset    func(gateway.MLDatasetItem) error
+	Run        func(gateway.MLRunItem) error
+	Artifact   func(gateway.MLArtifactItem) error
 }
 
-type ModelPayload struct {
-	Models           []gateway.MLModelItem
-	Versions         []gateway.MLVersionItem
-	ModelsProduction []gateway.MLModelItem
-	Evaluations      []gateway.MLEvaluationItem
+type TrainingSummary struct {
+	Experiments         int
+	Datasets            int
+	Runs                int
+	Artifacts           int
+	ExperimentMLflowIDs []string
+	EvaluatedModelIDs   []string
 }
 
-func BuildTraining(ctx context.Context, client *Client, project config.MLProjectRef) (*TrainingPayload, error) {
-	payload := &TrainingPayload{
-		Experiments: []gateway.MLExperimentItem{},
-		Datasets:    []gateway.MLDatasetItem{},
-		Runs:        []gateway.MLRunItem{},
-		Artifacts:   []gateway.MLArtifactItem{},
+type ModelSink struct {
+	Model           func(gateway.MLModelItem) error
+	Version         func(gateway.MLVersionItem) error
+	Evaluation      func(gateway.MLEvaluationItem) error
+	ProductionModel func(gateway.MLModelItem) error
+}
+
+type ModelSummary struct {
+	Models            int
+	Versions          int
+	UnchangedVersions int
+}
+
+func SyncTraining(ctx context.Context, client *Client, project config.MLProjectRef, since time.Time, sink TrainingSink) (TrainingSummary, error) {
+	summary := TrainingSummary{
+		ExperimentMLflowIDs: []string{},
+		EvaluatedModelIDs:   []string{},
 	}
 	datasetSeen := map[string]bool{}
+	evaluatedSeen := map[string]bool{}
 
 	for _, ref := range project.Experiments {
 		exp, err := client.GetExperimentByName(ctx, ref.Name)
 		if err != nil {
-			return nil, fmt.Errorf("experiment %q: %w", ref.Name, err)
+			return summary, fmt.Errorf("experiment %q: %w", ref.Name, err)
 		}
-		payload.Experiments = append(payload.Experiments, experimentToItem(exp, project.Name))
+		experimentItem := experimentToItem(exp, project.Name)
+		if err := sink.Experiment(experimentItem); err != nil {
+			return summary, fmt.Errorf("experiment %q: %w", ref.Name, err)
+		}
+		summary.Experiments++
+		summary.ExperimentMLflowIDs = append(summary.ExperimentMLflowIDs, experimentItem.MLflowID)
 		experimentEmail := tagValue(exp.Tags, userTagKey)
 
-		runs, err := client.SearchRuns(ctx, exp.ExperimentID)
-		if err != nil {
-			return nil, fmt.Errorf("experiment %q runs: %w", ref.Name, err)
-		}
-
-		for _, run := range runs {
-			if IsEvaluationRun(run) {
-				continue
-			}
-			runEmail := tagValue(run.Data.Tags, userTagKey)
-			if runEmail == "" {
-				runEmail = experimentEmail
-			}
-			payload.Runs = append(payload.Runs, runToItem(run, experimentEmail))
-
-			if run.Inputs != nil {
-				for _, di := range run.Inputs.DatasetInputs {
-					item := datasetToItem(di, run.Info.ExperimentID, runEmail)
-					key := run.Info.ExperimentID + "\x00" + item.MLflowID
-					if datasetSeen[key] {
+		err = client.SearchRuns(ctx, exp.ExperimentID, since, func(runs []Run) error {
+			for _, run := range runs {
+				for _, modelID := range evaluatedModelIDs(run) {
+					if evaluatedSeen[modelID] {
 						continue
 					}
-					datasetSeen[key] = true
-					payload.Datasets = append(payload.Datasets, item)
+					evaluatedSeen[modelID] = true
+					summary.EvaluatedModelIDs = append(summary.EvaluatedModelIDs, modelID)
 				}
-			}
 
-			var modelIDs []string
-			if run.Outputs != nil {
-				for _, out := range run.Outputs.ModelOutputs {
-					if out.ModelID != "" {
-						modelIDs = append(modelIDs, out.ModelID)
+				if IsEvaluationRun(run) {
+					continue
+				}
+				runEmail := tagValue(run.Data.Tags, userTagKey)
+				if runEmail == "" {
+					runEmail = experimentEmail
+				}
+
+				if run.Inputs != nil {
+					for _, di := range run.Inputs.DatasetInputs {
+						item := datasetToItem(di, run.Info.ExperimentID, runEmail)
+						key := run.Info.ExperimentID + "\x00" + item.MLflowID
+						if datasetSeen[key] {
+							continue
+						}
+						datasetSeen[key] = true
+						if err := sink.Dataset(item); err != nil {
+							return err
+						}
+						summary.Datasets++
 					}
 				}
-			}
-			if len(modelIDs) > 0 {
-				for _, modelID := range modelIDs {
-					artifacts, err := client.LoggedModelArtifacts(ctx, modelID)
+
+				if err := sink.Run(runToItem(run, experimentEmail)); err != nil {
+					return err
+				}
+				summary.Runs++
+
+				var modelIDs []string
+				if run.Outputs != nil {
+					for _, out := range run.Outputs.ModelOutputs {
+						if out.ModelID != "" {
+							modelIDs = append(modelIDs, out.ModelID)
+						}
+					}
+				}
+				if len(modelIDs) > 0 {
+					for _, modelID := range modelIDs {
+						artifacts, err := client.LoggedModelArtifacts(ctx, modelID)
+						if err != nil {
+							return fmt.Errorf("run %q logged model %q artifacts: %w", run.Info.RunID, modelID, err)
+						}
+						for _, f := range artifacts {
+							if err := sink.Artifact(loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f, runEmail)); err != nil {
+								return err
+							}
+							summary.Artifacts++
+						}
+					}
+				} else {
+					artifacts, err := client.Artifacts(ctx, run.Info.RunID)
 					if err != nil {
-						return nil, fmt.Errorf("run %q logged model %q artifacts: %w", run.Info.RunID, modelID, err)
+						return fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
 					}
 					for _, f := range artifacts {
-						payload.Artifacts = append(payload.Artifacts, loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f, runEmail))
+						if err := sink.Artifact(artifactToItem(client.baseURL, run.Info.RunID, f, runEmail)); err != nil {
+							return err
+						}
+						summary.Artifacts++
 					}
 				}
-			} else {
-				artifacts, err := client.Artifacts(ctx, run.Info.RunID)
-				if err != nil {
-					return nil, fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
-				}
-				for _, f := range artifacts {
-					payload.Artifacts = append(payload.Artifacts, artifactToItem(client.baseURL, run.Info.RunID, f, runEmail))
-				}
 			}
+			return nil
+		})
+		if err != nil {
+			return summary, fmt.Errorf("experiment %q runs: %w", ref.Name, err)
 		}
 	}
 
-	return payload, nil
+	return summary, nil
+}
+
+func versionChangedSince(v ModelVersion, since time.Time) bool {
+	if since.IsZero() {
+		return true
+	}
+	if v.LastUpdatedTimestamp == nil {
+		return true
+	}
+	return *v.LastUpdatedTimestamp > since.UnixMilli()
 }
 
 func versionEvaluations(ctx context.Context, client *Client, version ModelVersion, versionMLflowID, versionEmail string, runCache map[string]*Run) ([]gateway.MLEvaluationItem, error) {
@@ -137,49 +189,19 @@ func versionEvaluations(ctx context.Context, client *Client, version ModelVersio
 	return items, nil
 }
 
-func BuildModels(ctx context.Context, client *Client, project config.MLProjectRef) (*ModelPayload, error) {
-	payload := &ModelPayload{
-		Models:           []gateway.MLModelItem{},
-		Versions:         []gateway.MLVersionItem{},
-		ModelsProduction: []gateway.MLModelItem{},
-		Evaluations:      []gateway.MLEvaluationItem{},
-	}
+func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef, since time.Time, changedEvaluatedModelIDs map[string]bool, sink ModelSink) (ModelSummary, error) {
+	summary := ModelSummary{}
 	runCache := map[string]*Run{}
 
 	for _, ref := range project.Models {
 		model, err := client.GetRegisteredModel(ctx, ref.Name)
 		if err != nil {
-			return nil, fmt.Errorf("model %q: %w", ref.Name, err)
+			return summary, fmt.Errorf("model %q: %w", ref.Name, err)
 		}
 		if ref.Description != "" {
 			model.Description = ref.Description
 		}
 		modelEmail := tagValue(model.Tags, userTagKey)
-
-		versions, err := client.ModelVersions(ctx, ref.Name)
-		if err != nil {
-			return nil, fmt.Errorf("model %q versions: %w", ref.Name, err)
-		}
-
-		var productionVersion *string
-		for _, v := range versions {
-			payload.Versions = append(payload.Versions, versionToItem(v, modelEmail))
-			versionMLflowID := fmt.Sprintf("%s/%s", v.Name, v.Version)
-			if v.CurrentStage == "Production" {
-				id := versionMLflowID
-				productionVersion = &id
-			}
-			versionEmail := tagValue(v.Tags, userTagKey)
-			if versionEmail == "" {
-				versionEmail = modelEmail
-			}
-
-			evaluations, err := versionEvaluations(ctx, client, v, versionMLflowID, versionEmail, runCache)
-			if err != nil {
-				return nil, fmt.Errorf("model %q version %q evaluations: %w", ref.Name, v.Version, err)
-			}
-			payload.Evaluations = append(payload.Evaluations, evaluations...)
-		}
 
 		item := modelToItem(model, project.Name, nil)
 		item.ProblemType = ref.ProblemType
@@ -189,12 +211,62 @@ func BuildModels(ctx context.Context, client *Client, project config.MLProjectRe
 		item.Limitations = ref.Limitations
 		item.Recommendations = ref.Recommendations
 		item.Considerations = ref.Considerations
-		payload.Models = append(payload.Models, item)
+		if err := sink.Model(item); err != nil {
+			return summary, fmt.Errorf("model %q: %w", ref.Name, err)
+		}
+		summary.Models++
+
+		var productionVersion *string
+		err = client.ModelVersions(ctx, ref.Name, func(versions []ModelVersion) error {
+			for _, v := range versions {
+				versionMLflowID := fmt.Sprintf("%s/%s", v.Name, v.Version)
+				if v.CurrentStage == "Production" {
+					id := versionMLflowID
+					productionVersion = &id
+				}
+
+				changed := versionChangedSince(v, since)
+				if changed {
+					if err := sink.Version(versionToItem(v, modelEmail)); err != nil {
+						return err
+					}
+					summary.Versions++
+				}
+				if !changed {
+					summary.UnchangedVersions++
+				}
+
+				if !changed && !changedEvaluatedModelIDs[loggedModelIDFromSource(v.Source)] {
+					continue
+				}
+
+				versionEmail := tagValue(v.Tags, userTagKey)
+				if versionEmail == "" {
+					versionEmail = modelEmail
+				}
+
+				evaluations, err := versionEvaluations(ctx, client, v, versionMLflowID, versionEmail, runCache)
+				if err != nil {
+					return fmt.Errorf("version %q evaluations: %w", v.Version, err)
+				}
+				for _, e := range evaluations {
+					if err := sink.Evaluation(e); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			return summary, fmt.Errorf("model %q versions: %w", ref.Name, err)
+		}
 
 		production := item
 		production.ProductionVersionMLflowID = productionVersion
-		payload.ModelsProduction = append(payload.ModelsProduction, production)
+		if err := sink.ProductionModel(production); err != nil {
+			return summary, fmt.Errorf("model %q production version: %w", ref.Name, err)
+		}
 	}
 
-	return payload, nil
+	return summary, nil
 }

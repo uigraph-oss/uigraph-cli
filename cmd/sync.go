@@ -858,6 +858,18 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if len(cfg.ML) > 0 {
 		fmt.Printf("\n🤖 Syncing %d ML %s...\n", len(cfg.ML), pluralize(len(cfg.ML), "project", "projects"))
 
+		watermarks := map[string]time.Time{}
+		states, err := client.ListMLProjects(ctx)
+		if err != nil {
+			exitGatewayErrorErr("read last ML sync time", err)
+		}
+		for _, state := range states {
+			if state.SyncedAt == nil {
+				continue
+			}
+			watermarks[state.Name] = *state.SyncedAt
+		}
+
 		orderedML := make([]config.MLProjectRef, 0, len(cfg.ML))
 		for _, project := range cfg.ML {
 			if project.Type == "training" {
@@ -871,9 +883,18 @@ func runSync(cmd *cobra.Command, args []string) error {
 		}
 
 		syncedExperiments := map[string]bool{}
+		evaluatedModelIDs := map[string]bool{}
 
 		for _, project := range orderedML {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
+
+			since := watermarks[project.Name]
+			if since.IsZero() {
+				fmt.Println("      full sync (no previous sync recorded)")
+			}
+			if !since.IsZero() {
+				fmt.Printf("      incremental since %s\n", since.UTC().Format(time.RFC3339))
+			}
 
 			sourceURL, err := project.Source.ResolveURL()
 			if err != nil {
@@ -896,80 +917,139 @@ func runSync(cmd *cobra.Command, args []string) error {
 			mlflowClient := mlflow.NewClient(sourceURL, mlflowToken)
 
 			if project.Type == "training" {
-				tp, err := mlflow.BuildTraining(ctx, mlflowClient, project)
-				if err != nil {
-					exitGatewayErrorErr(fmt.Sprintf("collect ML project %q from MLflow", project.Name), err)
+				if dryRun {
+					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
 				}
-				totalMLExperiments += len(tp.Experiments)
-				for _, exp := range tp.Experiments {
-					syncedExperiments[sourceURL+"\x00"+exp.MLflowID] = true
+				if !dryRun {
+					if err := client.SyncMLProject(ctx, projectItem); err != nil {
+						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
+					}
+				}
+
+				runProgress := 0
+				sink := mlflow.TrainingSink{
+					Experiment: func(item gateway.MLExperimentItem) error {
+						if dryRun {
+							data, _ := json.MarshalIndent(item, "", "  ")
+							fmt.Println(string(data))
+							return nil
+						}
+						return client.SyncMLExperiment(ctx, item)
+					},
+					Dataset: func(item gateway.MLDatasetItem) error {
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLDataset(ctx, item)
+					},
+					Run: func(item gateway.MLRunItem) error {
+						runProgress++
+						if runProgress%1000 == 0 {
+							fmt.Printf("      … %d runs\n", runProgress)
+						}
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLRun(ctx, item)
+					},
+					Artifact: func(item gateway.MLArtifactItem) error {
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLArtifact(ctx, item)
+					},
+				}
+
+				ts, err := mlflow.SyncTraining(ctx, mlflowClient, project, since, sink)
+				if err != nil {
+					exitGatewayErrorErr(fmt.Sprintf("sync ML project %q from MLflow", project.Name), err)
+				}
+				totalMLExperiments += ts.Experiments
+				for _, id := range ts.ExperimentMLflowIDs {
+					syncedExperiments[sourceURL+"\x00"+id] = true
+				}
+				for _, modelID := range ts.EvaluatedModelIDs {
+					evaluatedModelIDs[sourceURL+"\x00"+modelID] = true
 				}
 
 				if dryRun {
-					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
 					fmt.Printf("  Experiments: %d, Runs: %d, Datasets: %d, Artifacts: %d\n",
-						len(tp.Experiments), len(tp.Runs), len(tp.Datasets), len(tp.Artifacts))
-					data, _ := json.MarshalIndent(tp.Experiments, "", "  ")
-					fmt.Println(string(data))
-				} else {
-					if _, err := client.SyncMLProjects(ctx, []gateway.MLProjectItem{projectItem}); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
-					}
-					if _, err := client.SyncMLExperiments(ctx, tp.Experiments); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML experiments for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLDatasets(ctx, tp.Datasets); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML datasets for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLRuns(ctx, tp.Runs); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML runs for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLArtifacts(ctx, tp.Artifacts); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML artifacts for %q", project.Name), err)
-					}
-					fmt.Printf("    ✓ ML project synced: %s (%d experiments, %d runs)\n", project.Name, len(tp.Experiments), len(tp.Runs))
+						ts.Experiments, ts.Runs, ts.Datasets, ts.Artifacts)
+				}
+				if !dryRun {
+					fmt.Printf("    ✓ ML project synced: %s (%d experiments, %d runs, %d artifacts)\n", project.Name, ts.Experiments, ts.Runs, ts.Artifacts)
 				}
 			}
 
 			if project.Type == "model" {
-				mp, err := mlflow.BuildModels(ctx, mlflowClient, project)
-				if err != nil {
-					exitGatewayErrorErr(fmt.Sprintf("collect ML project %q from MLflow", project.Name), err)
-				}
-				totalMLModels += len(mp.Models)
-
-				evaluations := make([]gateway.MLEvaluationItem, 0, len(mp.Evaluations))
-				skippedEvaluations := 0
-				for _, e := range mp.Evaluations {
-					if syncedExperiments[sourceURL+"\x00"+e.ExperimentMLflowID] {
-						evaluations = append(evaluations, e)
-						continue
+				sourceEvaluatedModelIDs := map[string]bool{}
+				for key := range evaluatedModelIDs {
+					if strings.HasPrefix(key, sourceURL+"\x00") {
+						sourceEvaluatedModelIDs[strings.TrimPrefix(key, sourceURL+"\x00")] = true
 					}
-					skippedEvaluations++
 				}
 
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Model Project (%s) ===\n", project.Name)
-					fmt.Printf("  Models: %d, Versions: %d, Evaluations: %d (skipped %d)\n", len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
-					data, _ := json.MarshalIndent(mp.ModelsProduction, "", "  ")
-					fmt.Println(string(data))
-				} else {
-					if _, err := client.SyncMLProjects(ctx, []gateway.MLProjectItem{projectItem}); err != nil {
+				}
+				if !dryRun {
+					if err := client.SyncMLProject(ctx, projectItem); err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
 					}
-					if _, err := client.SyncMLModels(ctx, mp.Models); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML models for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLVersions(ctx, mp.Versions); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML versions for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLModels(ctx, mp.ModelsProduction); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML models (production) for %q", project.Name), err)
-					}
-					if _, err := client.SyncMLEvaluations(ctx, evaluations); err != nil {
-						exitGatewayErrorErr(fmt.Sprintf("sync ML evaluations for %q", project.Name), err)
-					}
-					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d evaluations, %d evaluations skipped)\n", project.Name, len(mp.Models), len(mp.Versions), len(evaluations), skippedEvaluations)
+				}
+
+				versionProgress := 0
+				syncedEvaluations := 0
+				skippedEvaluations := 0
+				sink := mlflow.ModelSink{
+					Model: func(item gateway.MLModelItem) error {
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLModel(ctx, item)
+					},
+					Version: func(item gateway.MLVersionItem) error {
+						versionProgress++
+						if versionProgress%1000 == 0 {
+							fmt.Printf("      … %d versions\n", versionProgress)
+						}
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLVersion(ctx, item)
+					},
+					Evaluation: func(item gateway.MLEvaluationItem) error {
+						if !syncedExperiments[sourceURL+"\x00"+item.ExperimentMLflowID] {
+							skippedEvaluations++
+							return nil
+						}
+						syncedEvaluations++
+						if dryRun {
+							return nil
+						}
+						return client.SyncMLEvaluation(ctx, item)
+					},
+					ProductionModel: func(item gateway.MLModelItem) error {
+						if dryRun {
+							data, _ := json.MarshalIndent(item, "", "  ")
+							fmt.Println(string(data))
+							return nil
+						}
+						return client.SyncMLModel(ctx, item)
+					},
+				}
+
+				ms, err := mlflow.SyncModels(ctx, mlflowClient, project, since, sourceEvaluatedModelIDs, sink)
+				if err != nil {
+					exitGatewayErrorErr(fmt.Sprintf("sync ML project %q from MLflow", project.Name), err)
+				}
+				totalMLModels += ms.Models
+
+				if dryRun {
+					fmt.Printf("  Models: %d, Versions: %d (%d unchanged), Evaluations: %d (skipped %d)\n", ms.Models, ms.Versions, ms.UnchangedVersions, syncedEvaluations, skippedEvaluations)
+				}
+				if !dryRun {
+					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d versions unchanged, %d evaluations, %d evaluations skipped)\n", project.Name, ms.Models, ms.Versions, ms.UnchangedVersions, syncedEvaluations, skippedEvaluations)
 				}
 			}
 		}
