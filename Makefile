@@ -1,7 +1,7 @@
 .PHONY: build test clean install run-example docker-build
 
 # Build configuration
-BINARY_NAME=uigraph
+BINARY_NAME=uigraph-cli
 BUILD_DIR=bin
 GO=go
 MAIN_PATH=./main.go
