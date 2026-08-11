@@ -10,10 +10,9 @@ import (
 )
 
 type EntityCount struct {
-	Found    int
-	UpToDate int
-	Created  int
-	Updated  int
+	Found   int
+	Created int
+	Updated int
 }
 
 func (c *EntityCount) add(res gateway.SyncResult) {
@@ -23,7 +22,6 @@ func (c *EntityCount) add(res gateway.SyncResult) {
 
 func (c *EntityCount) Merge(o EntityCount) {
 	c.Found += o.Found
-	c.UpToDate += o.UpToDate
 	c.Created += o.Created
 	c.Updated += o.Updated
 }
@@ -265,9 +263,6 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 						return err
 					}
 					summary.Versions.add(res)
-				}
-				if !changed {
-					summary.Versions.UpToDate++
 				}
 
 				if !changed && !changedEvaluatedModelIDs[loggedModelIDFromSource(v.Source)] {

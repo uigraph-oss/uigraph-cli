@@ -149,14 +149,8 @@ func TestSyncModelsSkipsUnchangedVersions(t *testing.T) {
 	if len(gotVersions) != 1 || gotVersions[0].MLflowID != "Saba/2" {
 		t.Errorf("Versions = %+v, want only Saba/2", gotVersions)
 	}
-	if summary.Versions.UpToDate != 1 {
-		t.Errorf("Versions.UpToDate = %d, want 1", summary.Versions.UpToDate)
-	}
 	if summary.Versions.Found != 2 {
 		t.Errorf("Versions.Found = %d, want 2", summary.Versions.Found)
-	}
-	if summary.Versions.Found != summary.Versions.UpToDate+summary.Versions.Created+summary.Versions.Updated {
-		t.Errorf("Versions = %+v, want found to equal up-to-date + created + updated", summary.Versions)
 	}
 	if len(*fetched) != 1 || (*fetched)[0] != "new-model" {
 		t.Errorf("fetched logged models = %v, want only new-model", *fetched)
