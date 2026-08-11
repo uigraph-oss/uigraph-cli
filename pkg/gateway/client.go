@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/uigraph-oss/uigraph-cli/pkg/config"
 	"github.com/uigraph-oss/uigraph-cli/pkg/git"
@@ -18,15 +17,14 @@ type Client struct {
 	baseURL    string
 	token      string
 	httpClient *http.Client
+	Verbose    bool
 }
 
 func NewClient(baseURL, token string) *Client {
 	return &Client{
-		baseURL: baseURL,
-		token:   token,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		baseURL:    baseURL,
+		token:      token,
+		httpClient: &http.Client{},
 	}
 }
 

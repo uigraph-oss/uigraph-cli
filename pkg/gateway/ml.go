@@ -123,75 +123,140 @@ type MLEvaluationItem struct {
 	UserEmail          string         `json:"userEmail,omitempty"`
 }
 
-type mlSyncResponse struct {
-	Synced int `json:"synced"`
+type MLProjectState struct {
+	Name     string     `json:"name"`
+	SyncedAt *time.Time `json:"syncedAt"`
 }
 
-func (c *Client) postMLSync(ctx context.Context, path string, payload any) (int, error) {
-	body, err := json.Marshal(payload)
+type SyncResult struct {
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+}
+
+type mlSyncResponse struct {
+	Synced  int `json:"synced"`
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+}
+
+func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/v1/sync/ml/projects", c.baseURL), nil)
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s%s", c.baseURL, path), bytes.NewReader(body))
-	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-API-Token", c.token)
 
+	start := time.Now()
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return 0, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if c.Verbose {
+		fmt.Printf("        [gateway] GET /v1/sync/ml/projects %s\n", time.Since(start).Round(time.Millisecond))
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, fmt.Errorf("not authorized to read ML projects - the sync token needs the \"mlstudio:read\" scope")
+	}
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var listResp struct {
+		Projects []MLProjectState `json:"projects"`
+	}
+	if err := json.Unmarshal(respBody, &listResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return listResp.Projects, nil
+}
+
+func (c *Client) postML(ctx context.Context, path string, payload any) ([]byte, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s%s", c.baseURL, path), bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	start := time.Now()
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+	if c.Verbose {
+		fmt.Printf("        [gateway] POST %s %s\n", path, time.Since(start).Round(time.Millisecond))
 	}
 
 	if resp.StatusCode >= 400 {
-		return 0, formatGatewayError(resp.StatusCode, respBody)
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	return respBody, nil
+}
+
+func (c *Client) postMLSync(ctx context.Context, path string, payload any) (SyncResult, error) {
+	respBody, err := c.postML(ctx, path, payload)
+	if err != nil {
+		return SyncResult{}, err
 	}
 
 	var syncResp mlSyncResponse
 	if err := json.Unmarshal(respBody, &syncResp); err != nil {
-		return 0, fmt.Errorf("failed to parse response: %w", err)
+		return SyncResult{}, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return syncResp.Synced, nil
+	return SyncResult{Created: syncResp.Created, Updated: syncResp.Updated}, nil
 }
 
-func (c *Client) SyncMLProjects(ctx context.Context, items []MLProjectItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/projects", items)
+func (c *Client) SyncMLProject(ctx context.Context, item MLProjectItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/projects", []MLProjectItem{item})
 }
 
-func (c *Client) SyncMLModels(ctx context.Context, items []MLModelItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/models", items)
+func (c *Client) SyncMLModel(ctx context.Context, item MLModelItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/models", []MLModelItem{item})
 }
 
-func (c *Client) SyncMLVersions(ctx context.Context, items []MLVersionItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/versions", items)
+func (c *Client) SyncMLVersion(ctx context.Context, item MLVersionItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/versions", []MLVersionItem{item})
 }
 
-func (c *Client) SyncMLExperiments(ctx context.Context, items []MLExperimentItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/experiments", items)
+func (c *Client) SyncMLExperiment(ctx context.Context, item MLExperimentItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/experiments", []MLExperimentItem{item})
 }
 
-func (c *Client) SyncMLRuns(ctx context.Context, items []MLRunItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/runs", items)
+func (c *Client) SyncMLRun(ctx context.Context, item MLRunItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/runs", []MLRunItem{item})
 }
 
-func (c *Client) SyncMLArtifacts(ctx context.Context, items []MLArtifactItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/artifacts", items)
+func (c *Client) SyncMLArtifact(ctx context.Context, item MLArtifactItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/artifacts", []MLArtifactItem{item})
 }
 
-func (c *Client) SyncMLDatasets(ctx context.Context, items []MLDatasetItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/datasets", items)
+func (c *Client) SyncMLDataset(ctx context.Context, item MLDatasetItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/datasets", []MLDatasetItem{item})
 }
 
-func (c *Client) SyncMLEvaluations(ctx context.Context, items []MLEvaluationItem) (int, error) {
-	return c.postMLSync(ctx, "/v1/sync/ml/evaluations", items)
+func (c *Client) SyncMLEvaluation(ctx context.Context, item MLEvaluationItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/evaluations", []MLEvaluationItem{item})
 }
