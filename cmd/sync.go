@@ -894,11 +894,15 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\n🤖 Syncing %d ML %s...\n", len(cfg.ML), pluralize(len(cfg.ML), "project", "projects"))
 
 		watermarks := map[string]time.Time{}
-		states, err := client.ListMLProjects(ctx)
+		deletedProjects := map[string]bool{}
+		states, err := client.ListMLProjects(ctx, true)
 		if err != nil {
 			exitGatewayErrorErr("read last ML sync time", err)
 		}
 		for _, state := range states {
+			if state.DeletedAt != nil {
+				deletedProjects[state.Name] = true
+			}
 			if state.SyncedAt == nil {
 				continue
 			}
@@ -923,15 +927,22 @@ func runSync(cmd *cobra.Command, args []string) error {
 		for _, project := range orderedML {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
 
+			if deletedProjects[project.Name] {
+				if _, err := client.RestoreMLProject(ctx, project.Name); err != nil {
+					exitGatewayErrorErr(fmt.Sprintf("restore ML project %q", project.Name), err)
+				}
+				fmt.Println("    ↺ restored")
+			}
+
 			since := watermarks[project.Name]
 
 			sourceURL, err := project.Source.ResolveURL()
 			if err != nil {
-				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow url for ML project %q", project.Name), err)
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow url for %q", project.Name), err)
 			}
 			mlflowToken, err := project.Source.ResolveToken()
 			if err != nil {
-				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow token for ML project %q", project.Name), err)
+				exitGatewayErrorErr(fmt.Sprintf("resolve MLflow token for %q", project.Name), err)
 			}
 
 			projectItem := gateway.MLProjectItem{

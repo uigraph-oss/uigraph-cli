@@ -124,8 +124,9 @@ type MLEvaluationItem struct {
 }
 
 type MLProjectState struct {
-	Name     string     `json:"name"`
-	SyncedAt *time.Time `json:"syncedAt"`
+	Name      string     `json:"name"`
+	SyncedAt  *time.Time `json:"syncedAt"`
+	DeletedAt *time.Time `json:"deletedAt"`
 }
 
 type SyncResult struct {
@@ -139,8 +140,12 @@ type mlSyncResponse struct {
 	Updated int `json:"updated"`
 }
 
-func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
-	httpReq, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/v1/sync/ml/projects", c.baseURL), nil)
+func (c *Client) ListMLProjects(ctx context.Context, includeDeleted bool) ([]MLProjectState, error) {
+	url := fmt.Sprintf("%s/v1/sync/ml/projects", c.baseURL)
+	if includeDeleted {
+		url += "?includeDeleted=true"
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -227,6 +232,22 @@ func (c *Client) postMLSync(ctx context.Context, path string, payload any) (Sync
 	}
 
 	return SyncResult{Created: syncResp.Created, Updated: syncResp.Updated}, nil
+}
+
+func (c *Client) RestoreMLProject(ctx context.Context, name string) (int, error) {
+	respBody, err := c.postML(ctx, "/v1/sync/ml/projects/restore", []map[string]string{{"name": name}})
+	if err != nil {
+		return 0, err
+	}
+
+	var restoreResp struct {
+		Restored int `json:"restored"`
+	}
+	if err := json.Unmarshal(respBody, &restoreResp); err != nil {
+		return 0, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return restoreResp.Restored, nil
 }
 
 func (c *Client) SyncMLProject(ctx context.Context, item MLProjectItem) (SyncResult, error) {
