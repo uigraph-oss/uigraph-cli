@@ -282,3 +282,51 @@ func TestSyncTrainingCollectsEvaluatedModelIDs(t *testing.T) {
 		t.Errorf("Experiments = %+v, want found 1 updated 1", summary.Experiments)
 	}
 }
+
+func TestSyncTrainingSyncsEvaluationRunDatasets(t *testing.T) {
+	server := trainingServer(t,
+		`{"runs":[{"info":{"run_id":"eval-run","experiment_id":"1"},"data":{"tags":[{"key":"mlflow.datasets","value":"[{\"model\":\"old-model\"}]"}]},"inputs":{"dataset_inputs":[{"dataset":{"name":"holdout","digest":"abc123","source_type":"local","source":"/data/holdout"}}]}}]}`)
+	defer server.Close()
+
+	project := config.MLProjectRef{Name: "p", Type: "training", Experiments: []config.MLExperimentRef{{Name: "exp"}}}
+
+	var gotRuns []gateway.MLRunItem
+	var gotDatasets []gateway.MLDatasetItem
+	sink := TrainingSink{
+		Experiment: func(gateway.MLExperimentItem) (gateway.SyncResult, error) {
+			return gateway.SyncResult{Updated: 1}, nil
+		},
+		Dataset: func(item gateway.MLDatasetItem) (gateway.SyncResult, error) {
+			gotDatasets = append(gotDatasets, item)
+			return gateway.SyncResult{Created: 1}, nil
+		},
+		Run: func(item gateway.MLRunItem) (gateway.SyncResult, error) {
+			gotRuns = append(gotRuns, item)
+			return gateway.SyncResult{Created: 1}, nil
+		},
+		Artifact: func(gateway.MLArtifactItem) (gateway.SyncResult, error) {
+			return gateway.SyncResult{Created: 1}, nil
+		},
+	}
+
+	summary, err := SyncTraining(context.Background(), NewClient(server.URL, ""), project, time.UnixMilli(1000).UTC(), sink)
+	if err != nil {
+		t.Fatalf("SyncTraining: %v", err)
+	}
+
+	if len(gotRuns) != 0 {
+		t.Errorf("Runs = %+v, want none (evaluation runs are not training runs)", gotRuns)
+	}
+	if len(gotDatasets) != 1 {
+		t.Fatalf("Datasets = %+v, want the evaluation run's dataset", gotDatasets)
+	}
+	if gotDatasets[0].MLflowID != "abc123" {
+		t.Errorf("dataset MLflowID = %q, want abc123", gotDatasets[0].MLflowID)
+	}
+	if gotDatasets[0].ExperimentMLflowID != "1" {
+		t.Errorf("dataset ExperimentMLflowID = %q, want 1", gotDatasets[0].ExperimentMLflowID)
+	}
+	if summary.Datasets.Found != 1 || summary.Datasets.Created != 1 {
+		t.Errorf("Datasets = %+v, want found 1 created 1", summary.Datasets)
+	}
+}

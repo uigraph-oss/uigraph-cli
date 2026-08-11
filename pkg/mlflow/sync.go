@@ -90,9 +90,6 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 					summary.EvaluatedModelIDs = append(summary.EvaluatedModelIDs, modelID)
 				}
 
-				if IsEvaluationRun(run) {
-					continue
-				}
 				runEmail := tagValue(run.Data.Tags, userTagKey)
 				if runEmail == "" {
 					runEmail = experimentEmail
@@ -113,6 +110,10 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 						summary.Datasets.Found++
 						summary.Datasets.add(res)
 					}
+				}
+
+				if IsEvaluationRun(run) {
+					continue
 				}
 
 				res, err := sink.Run(runToItem(run, experimentEmail))
