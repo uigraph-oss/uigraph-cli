@@ -115,3 +115,91 @@ func TestSyncMLProject_ErrorStatus(t *testing.T) {
 		t.Fatal("SyncMLProject() error = nil, want error on 500 status")
 	}
 }
+
+func TestListMLProjects_IncludeDeleted(t *testing.T) {
+	var gotQuery string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[{"name":"live","syncedAt":"2024-01-01T00:00:00Z"},{"name":"gone","syncedAt":"2024-01-02T00:00:00Z","deletedAt":"2024-02-01T00:00:00Z"}]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret-token")
+
+	states, err := client.ListMLProjects(context.Background(), true)
+	if err != nil {
+		t.Fatalf("ListMLProjects() error = %v", err)
+	}
+	if gotQuery != "includeDeleted=true" {
+		t.Errorf("query = %q, want includeDeleted=true", gotQuery)
+	}
+	if len(states) != 2 {
+		t.Fatalf("got %d projects, want 2", len(states))
+	}
+	if states[0].DeletedAt != nil {
+		t.Errorf("project %q deletedAt = %v, want nil", states[0].Name, states[0].DeletedAt)
+	}
+	if states[1].DeletedAt == nil {
+		t.Fatalf("project %q deletedAt = nil, want a timestamp", states[1].Name)
+	}
+}
+
+func TestListMLProjects_OmitsIncludeDeletedByDefault(t *testing.T) {
+	var gotQuery string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"projects":[]}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret-token")
+
+	if _, err := client.ListMLProjects(context.Background(), false); err != nil {
+		t.Fatalf("ListMLProjects() error = %v", err)
+	}
+	if gotQuery != "" {
+		t.Errorf("query = %q, want empty", gotQuery)
+	}
+}
+
+func TestRestoreMLProject(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotReq []map[string]string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+
+		body, _ := io.ReadAll(r.Body)
+		if err := json.Unmarshal(body, &gotReq); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"restored":1}`))
+	}))
+	defer server.Close()
+
+	client := NewClient(server.URL, "secret-token")
+
+	restored, err := client.RestoreMLProject(context.Background(), "Tabular Intelligence Training")
+	if err != nil {
+		t.Fatalf("RestoreMLProject() error = %v", err)
+	}
+	if restored != 1 {
+		t.Errorf("restored = %d, want 1", restored)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %s, want POST", gotMethod)
+	}
+	if gotPath != "/v1/sync/ml/projects/restore" {
+		t.Errorf("path = %s, want /v1/sync/ml/projects/restore", gotPath)
+	}
+	if len(gotReq) != 1 || gotReq[0]["name"] != "Tabular Intelligence Training" {
+		t.Errorf("request body mismatch: %+v", gotReq)
+	}
+}
