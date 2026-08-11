@@ -56,16 +56,6 @@ func TestSearchRunsFilter(t *testing.T) {
 	if bodies[1]["run_view_type"] != "ACTIVE_ONLY" {
 		t.Errorf("run_view_type = %v, want ACTIVE_ONLY", bodies[1]["run_view_type"])
 	}
-
-	if err := client.SearchDeletedRuns(context.Background(), "1", discard); err != nil {
-		t.Fatalf("SearchDeletedRuns: %v", err)
-	}
-	if bodies[2]["run_view_type"] != "DELETED_ONLY" {
-		t.Errorf("run_view_type = %v, want DELETED_ONLY", bodies[2]["run_view_type"])
-	}
-	if _, ok := bodies[2]["filter"]; ok {
-		t.Errorf("deleted pass sent a filter: %v", bodies[2]["filter"])
-	}
 }
 
 func TestVersionChangedSince(t *testing.T) {
@@ -130,7 +120,6 @@ func collectModels(versions *[]gateway.MLVersionItem, evaluations *[]gateway.MLE
 			*evaluations = append(*evaluations, item)
 			return gateway.SyncResult{Created: 1}, nil
 		},
-		PruneVersions: func(string, []string) (int, error) { return 0, nil },
 		ProductionModel: func(item gateway.MLModelItem) (gateway.SyncResult, error) {
 			*production = append(*production, item)
 			return gateway.SyncResult{Updated: 1}, nil
@@ -171,50 +160,6 @@ func TestSyncModelsSkipsUnchangedVersions(t *testing.T) {
 	}
 	if len(*fetched) != 1 || (*fetched)[0] != "new-model" {
 		t.Errorf("fetched logged models = %v, want only new-model", *fetched)
-	}
-}
-
-func TestSyncModelsPrunesWithEveryListedVersion(t *testing.T) {
-	versions := []ModelVersion{
-		{Name: "Saba", Version: "1", LastUpdatedTimestamp: ptr(int64(500))},
-		{Name: "Saba", Version: "2", LastUpdatedTimestamp: ptr(int64(1500))},
-	}
-	server, _ := modelServer(t, versions)
-	defer server.Close()
-
-	project := config.MLProjectRef{Name: "p", Type: "model", Models: []config.MLModelRef{{Name: "Saba"}}}
-
-	var gotVersions []gateway.MLVersionItem
-	var gotEvaluations []gateway.MLEvaluationItem
-	var gotProduction []gateway.MLModelItem
-	sink := collectModels(&gotVersions, &gotEvaluations, &gotProduction)
-
-	var pruneCalls int
-	var gotModelID string
-	var gotKeep []string
-	sink.PruneVersions = func(modelMLflowID string, keep []string) (int, error) {
-		pruneCalls++
-		gotModelID = modelMLflowID
-		gotKeep = keep
-		return 3, nil
-	}
-
-	summary, err := SyncModels(context.Background(), NewClient(server.URL, ""), project, time.UnixMilli(1000).UTC(), map[string]bool{}, sink)
-	if err != nil {
-		t.Fatalf("SyncModels: %v", err)
-	}
-
-	if pruneCalls != 1 {
-		t.Errorf("PruneVersions called %d times, want 1", pruneCalls)
-	}
-	if gotModelID != "Saba" {
-		t.Errorf("prune model = %q, want Saba", gotModelID)
-	}
-	if len(gotKeep) != 2 || gotKeep[0] != "Saba/1" || gotKeep[1] != "Saba/2" {
-		t.Errorf("keep = %v, want [Saba/1 Saba/2]", gotKeep)
-	}
-	if summary.Versions.Deleted != 3 {
-		t.Errorf("Versions.Deleted = %d, want 3", summary.Versions.Deleted)
 	}
 }
 
@@ -274,7 +219,7 @@ func TestSyncModelsKeepsProductionVersionWhenUnchanged(t *testing.T) {
 	}
 }
 
-func trainingServer(t *testing.T, active, deleted string) *httptest.Server {
+func trainingServer(t *testing.T, active string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/api/2.0/mlflow/")
@@ -285,16 +230,12 @@ func trainingServer(t *testing.T, active, deleted string) *httptest.Server {
 			raw, _ := io.ReadAll(r.Body)
 			var body map[string]any
 			_ = json.Unmarshal(raw, &body)
-			if body["run_view_type"] == "ACTIVE_ONLY" {
-				_, _ = w.Write([]byte(active))
+			if body["run_view_type"] != "ACTIVE_ONLY" {
+				t.Errorf("unexpected run_view_type: %v", body["run_view_type"])
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if body["run_view_type"] == "DELETED_ONLY" {
-				_, _ = w.Write([]byte(deleted))
-				return
-			}
-			t.Errorf("unexpected run_view_type: %v", body["run_view_type"])
-			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(active))
 		default:
 			t.Errorf("unexpected MLflow request: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -304,8 +245,7 @@ func trainingServer(t *testing.T, active, deleted string) *httptest.Server {
 
 func TestSyncTrainingCollectsEvaluatedModelIDs(t *testing.T) {
 	server := trainingServer(t,
-		`{"runs":[{"info":{"run_id":"eval-run","experiment_id":"1"},"data":{"tags":[{"key":"mlflow.datasets","value":"[{\"model\":\"old-model\"}]"}]}}]}`,
-		`{"runs":[]}`)
+		`{"runs":[{"info":{"run_id":"eval-run","experiment_id":"1"},"data":{"tags":[{"key":"mlflow.datasets","value":"[{\"model\":\"old-model\"}]"}]}}]}`)
 	defer server.Close()
 
 	project := config.MLProjectRef{Name: "p", Type: "training", Experiments: []config.MLExperimentRef{{Name: "exp"}}}
@@ -325,7 +265,6 @@ func TestSyncTrainingCollectsEvaluatedModelIDs(t *testing.T) {
 		Artifact: func(gateway.MLArtifactItem) (gateway.SyncResult, error) {
 			return gateway.SyncResult{Created: 1}, nil
 		},
-		DeletedRun: func(string) (int, error) { return 0, nil },
 	}
 
 	summary, err := SyncTraining(context.Background(), NewClient(server.URL, ""), project, time.UnixMilli(1000).UTC(), sink)
@@ -341,45 +280,5 @@ func TestSyncTrainingCollectsEvaluatedModelIDs(t *testing.T) {
 	}
 	if summary.Experiments.Found != 1 || summary.Experiments.Updated != 1 {
 		t.Errorf("Experiments = %+v, want found 1 updated 1", summary.Experiments)
-	}
-}
-
-func TestSyncTrainingPrunesDeletedRuns(t *testing.T) {
-	server := trainingServer(t,
-		`{"runs":[]}`,
-		`{"runs":[{"info":{"run_id":"gone-1","experiment_id":"1","lifecycle_stage":"deleted"}},{"info":{"run_id":"gone-2","experiment_id":"1","lifecycle_stage":"deleted"}}]}`)
-	defer server.Close()
-
-	project := config.MLProjectRef{Name: "p", Type: "training", Experiments: []config.MLExperimentRef{{Name: "exp"}}}
-
-	var pruned []string
-	sink := TrainingSink{
-		Experiment: func(gateway.MLExperimentItem) (gateway.SyncResult, error) {
-			return gateway.SyncResult{Updated: 1}, nil
-		},
-		Dataset: func(gateway.MLDatasetItem) (gateway.SyncResult, error) { return gateway.SyncResult{}, nil },
-		Run:     func(gateway.MLRunItem) (gateway.SyncResult, error) { return gateway.SyncResult{}, nil },
-		Artifact: func(gateway.MLArtifactItem) (gateway.SyncResult, error) {
-			return gateway.SyncResult{}, nil
-		},
-		DeletedRun: func(mlflowID string) (int, error) {
-			pruned = append(pruned, mlflowID)
-			return 1, nil
-		},
-	}
-
-	summary, err := SyncTraining(context.Background(), NewClient(server.URL, ""), project, time.UnixMilli(1000).UTC(), sink)
-	if err != nil {
-		t.Fatalf("SyncTraining: %v", err)
-	}
-
-	if len(pruned) != 2 || pruned[0] != "gone-1" || pruned[1] != "gone-2" {
-		t.Errorf("pruned = %v, want [gone-1 gone-2]", pruned)
-	}
-	if summary.Runs.Deleted != 2 {
-		t.Errorf("Runs.Deleted = %d, want 2", summary.Runs.Deleted)
-	}
-	if summary.Runs.Found != 0 {
-		t.Errorf("Runs.Found = %d, want 0", summary.Runs.Found)
 	}
 }

@@ -14,7 +14,6 @@ type EntityCount struct {
 	UpToDate int
 	Created  int
 	Updated  int
-	Deleted  int
 }
 
 func (c *EntityCount) add(res gateway.SyncResult) {
@@ -27,7 +26,6 @@ func (c *EntityCount) Merge(o EntityCount) {
 	c.UpToDate += o.UpToDate
 	c.Created += o.Created
 	c.Updated += o.Updated
-	c.Deleted += o.Deleted
 }
 
 type TrainingSink struct {
@@ -35,7 +33,6 @@ type TrainingSink struct {
 	Dataset    func(gateway.MLDatasetItem) (gateway.SyncResult, error)
 	Run        func(gateway.MLRunItem) (gateway.SyncResult, error)
 	Artifact   func(gateway.MLArtifactItem) (gateway.SyncResult, error)
-	DeletedRun func(mlflowID string) (int, error)
 }
 
 type TrainingSummary struct {
@@ -51,7 +48,6 @@ type ModelSink struct {
 	Model           func(gateway.MLModelItem) (gateway.SyncResult, error)
 	Version         func(gateway.MLVersionItem) (gateway.SyncResult, error)
 	Evaluation      func(gateway.MLEvaluationItem) (gateway.SyncResult, error)
-	PruneVersions   func(modelMLflowID string, keep []string) (int, error)
 	ProductionModel func(gateway.MLModelItem) (gateway.SyncResult, error)
 }
 
@@ -169,20 +165,6 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 		if err != nil {
 			return summary, fmt.Errorf("experiment %q runs: %w", ref.Name, err)
 		}
-
-		err = client.SearchDeletedRuns(ctx, exp.ExperimentID, func(runs []Run) error {
-			for _, run := range runs {
-				deleted, err := sink.DeletedRun(run.Info.RunID)
-				if err != nil {
-					return err
-				}
-				summary.Runs.Deleted += deleted
-			}
-			return nil
-		})
-		if err != nil {
-			return summary, fmt.Errorf("experiment %q deleted runs: %w", ref.Name, err)
-		}
 	}
 
 	return summary, nil
@@ -266,11 +248,9 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 		summary.Models.add(res)
 
 		var productionVersion *string
-		keep := []string{}
 		err = client.ModelVersions(ctx, ref.Name, func(versions []ModelVersion) error {
 			for _, v := range versions {
 				versionMLflowID := fmt.Sprintf("%s/%s", v.Name, v.Version)
-				keep = append(keep, versionMLflowID)
 				if v.CurrentStage == "Production" {
 					id := versionMLflowID
 					productionVersion = &id
@@ -316,12 +296,6 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 		if err != nil {
 			return summary, fmt.Errorf("model %q versions: %w", ref.Name, err)
 		}
-
-		deleted, err := sink.PruneVersions(item.MLflowID, keep)
-		if err != nil {
-			return summary, fmt.Errorf("model %q stale versions: %w", ref.Name, err)
-		}
-		summary.Versions.Deleted += deleted
 
 		production := item
 		production.ProductionVersionMLflowID = productionVersion

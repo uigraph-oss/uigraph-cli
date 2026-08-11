@@ -123,15 +123,6 @@ type MLEvaluationItem struct {
 	UserEmail          string         `json:"userEmail,omitempty"`
 }
 
-type MLRunPruneItem struct {
-	MLflowID string `json:"mlflowId"`
-}
-
-type MLVersionPruneItem struct {
-	ModelMLflowID string   `json:"modelMlflowId"`
-	Keep          []string `json:"keep"`
-}
-
 type MLProjectState struct {
 	Name     string     `json:"name"`
 	SyncedAt *time.Time `json:"syncedAt"`
@@ -146,10 +137,6 @@ type mlSyncResponse struct {
 	Synced  int `json:"synced"`
 	Created int `json:"created"`
 	Updated int `json:"updated"`
-}
-
-type mlPruneResponse struct {
-	Deleted int `json:"deleted"`
 }
 
 func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
@@ -234,20 +221,6 @@ func (c *Client) postMLSync(ctx context.Context, path string, payload any) (Sync
 	return SyncResult{Created: syncResp.Created, Updated: syncResp.Updated}, nil
 }
 
-func (c *Client) postMLPrune(ctx context.Context, path string, payload any) (int, error) {
-	respBody, err := c.postML(ctx, path, payload)
-	if err != nil {
-		return 0, err
-	}
-
-	var pruneResp mlPruneResponse
-	if err := json.Unmarshal(respBody, &pruneResp); err != nil {
-		return 0, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return pruneResp.Deleted, nil
-}
-
 func (c *Client) SyncMLProject(ctx context.Context, item MLProjectItem) (SyncResult, error) {
 	return c.postMLSync(ctx, "/v1/sync/ml/projects", []MLProjectItem{item})
 }
@@ -278,15 +251,4 @@ func (c *Client) SyncMLDataset(ctx context.Context, item MLDatasetItem) (SyncRes
 
 func (c *Client) SyncMLEvaluation(ctx context.Context, item MLEvaluationItem) (SyncResult, error) {
 	return c.postMLSync(ctx, "/v1/sync/ml/evaluations", []MLEvaluationItem{item})
-}
-
-func (c *Client) PruneMLRun(ctx context.Context, mlflowID string) (int, error) {
-	return c.postMLPrune(ctx, "/v1/sync/ml/runs/prune", []MLRunPruneItem{{MLflowID: mlflowID}})
-}
-
-func (c *Client) PruneMLVersions(ctx context.Context, modelMLflowID string, keep []string) (int, error) {
-	if keep == nil {
-		keep = []string{}
-	}
-	return c.postMLPrune(ctx, "/v1/sync/ml/versions/prune", MLVersionPruneItem{ModelMLflowID: modelMLflowID, Keep: keep})
 }

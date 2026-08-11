@@ -66,7 +66,7 @@ const mlNoColumn = "-"
 
 // printMLCounts prints the found/up-to-date/created/updated/deleted table
 func printMLCounts(indent string, rows [][]string) {
-	header := []string{"entity", "found", "up-to-date", "created", "updated", "deleted"}
+	header := []string{"entity", "found", "up-to-date", "created", "updated"}
 	widths := make([]int, len(header))
 	for i, cell := range header {
 		widths[i] = len(cell)
@@ -922,12 +922,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  • %s (%s)\n", project.Name, project.Type)
 
 			since := watermarks[project.Name]
-			if since.IsZero() {
-				fmt.Println("      full sync (no previous sync recorded)")
-			}
-			if !since.IsZero() {
-				fmt.Printf("      incremental since %s\n", since.UTC().Format(time.RFC3339))
-			}
 
 			sourceURL, err := project.Source.ResolveURL()
 			if err != nil {
@@ -995,12 +989,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 						}
 						return client.SyncMLArtifact(ctx, item)
 					},
-					DeletedRun: func(mlflowID string) (int, error) {
-						if dryRun {
-							return 0, nil
-						}
-						return client.PruneMLRun(ctx, mlflowID)
-					},
 				}
 
 				ts, err := mlflow.SyncTraining(ctx, mlflowClient, project, since, sink)
@@ -1019,16 +1007,15 @@ func runSync(cmd *cobra.Command, args []string) error {
 				}
 
 				rows := [][]string{
-					{"experiments", strconv.Itoa(ts.Experiments.Found), mlNoColumn, strconv.Itoa(ts.Experiments.Created), strconv.Itoa(ts.Experiments.Updated), mlNoColumn},
-					{"datasets", strconv.Itoa(ts.Datasets.Found), mlNoColumn, strconv.Itoa(ts.Datasets.Created), strconv.Itoa(ts.Datasets.Updated), mlNoColumn},
-					{"runs", strconv.Itoa(ts.Runs.Found), mlNoColumn, strconv.Itoa(ts.Runs.Created), strconv.Itoa(ts.Runs.Updated), strconv.Itoa(ts.Runs.Deleted)},
-					{"artifacts", strconv.Itoa(ts.Artifacts.Found), mlNoColumn, strconv.Itoa(ts.Artifacts.Created), strconv.Itoa(ts.Artifacts.Updated), mlNoColumn},
+					{"experiments", strconv.Itoa(ts.Experiments.Found), mlNoColumn, strconv.Itoa(ts.Experiments.Created), strconv.Itoa(ts.Experiments.Updated)},
+					{"datasets", strconv.Itoa(ts.Datasets.Found), mlNoColumn, strconv.Itoa(ts.Datasets.Created), strconv.Itoa(ts.Datasets.Updated)},
+					{"runs", strconv.Itoa(ts.Runs.Found), mlNoColumn, strconv.Itoa(ts.Runs.Created), strconv.Itoa(ts.Runs.Updated)},
+					{"artifacts", strconv.Itoa(ts.Artifacts.Found), mlNoColumn, strconv.Itoa(ts.Artifacts.Created), strconv.Itoa(ts.Artifacts.Updated)},
 				}
 				if dryRun {
 					for i := range rows {
 						rows[i][3] = mlNoColumn
 						rows[i][4] = mlNoColumn
-						rows[i][5] = mlNoColumn
 					}
 				}
 				printMLCounts("      ", rows)
@@ -1087,12 +1074,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 						}
 						return client.SyncMLEvaluation(ctx, item)
 					},
-					PruneVersions: func(modelMLflowID string, keep []string) (int, error) {
-						if dryRun {
-							return 0, nil
-						}
-						return client.PruneMLVersions(ctx, modelMLflowID, keep)
-					},
 					ProductionModel: func(item gateway.MLModelItem) (gateway.SyncResult, error) {
 						if dryRun {
 							data, _ := json.MarshalIndent(item, "", "  ")
@@ -1112,15 +1093,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 				totalMLEvaluations.Merge(ms.Evaluations)
 
 				rows := [][]string{
-					{"models", strconv.Itoa(ms.Models.Found), mlNoColumn, strconv.Itoa(ms.Models.Created), strconv.Itoa(ms.Models.Updated), mlNoColumn},
-					{"versions", strconv.Itoa(ms.Versions.Found), strconv.Itoa(ms.Versions.UpToDate), strconv.Itoa(ms.Versions.Created), strconv.Itoa(ms.Versions.Updated), strconv.Itoa(ms.Versions.Deleted)},
-					{"evaluations", strconv.Itoa(ms.Evaluations.Found), mlNoColumn, strconv.Itoa(ms.Evaluations.Created), strconv.Itoa(ms.Evaluations.Updated), mlNoColumn},
+					{"models", strconv.Itoa(ms.Models.Found), mlNoColumn, strconv.Itoa(ms.Models.Created), strconv.Itoa(ms.Models.Updated)},
+					{"versions", strconv.Itoa(ms.Versions.Found), strconv.Itoa(ms.Versions.UpToDate), strconv.Itoa(ms.Versions.Created), strconv.Itoa(ms.Versions.Updated)},
+					{"evaluations", strconv.Itoa(ms.Evaluations.Found), mlNoColumn, strconv.Itoa(ms.Evaluations.Created), strconv.Itoa(ms.Evaluations.Updated)},
 				}
 				if dryRun {
 					for i := range rows {
 						rows[i][3] = mlNoColumn
 						rows[i][4] = mlNoColumn
-						rows[i][5] = mlNoColumn
 					}
 				}
 				printMLCounts("      ", rows)
@@ -1162,14 +1142,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Printf("ML Projects: %d\n", len(cfg.ML))
 	if len(cfg.ML) > 0 {
 		rows := [][]string{
-			{"projects", strconv.Itoa(totalMLProjects.Found), mlNoColumn, strconv.Itoa(totalMLProjects.Created), strconv.Itoa(totalMLProjects.Updated), mlNoColumn},
-			{"experiments", strconv.Itoa(totalMLExperiments.Found), mlNoColumn, strconv.Itoa(totalMLExperiments.Created), strconv.Itoa(totalMLExperiments.Updated), mlNoColumn},
-			{"datasets", strconv.Itoa(totalMLDatasets.Found), mlNoColumn, strconv.Itoa(totalMLDatasets.Created), strconv.Itoa(totalMLDatasets.Updated), mlNoColumn},
-			{"runs", strconv.Itoa(totalMLRuns.Found), mlNoColumn, strconv.Itoa(totalMLRuns.Created), strconv.Itoa(totalMLRuns.Updated), strconv.Itoa(totalMLRuns.Deleted)},
-			{"artifacts", strconv.Itoa(totalMLArtifacts.Found), mlNoColumn, strconv.Itoa(totalMLArtifacts.Created), strconv.Itoa(totalMLArtifacts.Updated), mlNoColumn},
-			{"models", strconv.Itoa(totalMLModels.Found), mlNoColumn, strconv.Itoa(totalMLModels.Created), strconv.Itoa(totalMLModels.Updated), mlNoColumn},
-			{"versions", strconv.Itoa(totalMLVersions.Found), strconv.Itoa(totalMLVersions.UpToDate), strconv.Itoa(totalMLVersions.Created), strconv.Itoa(totalMLVersions.Updated), strconv.Itoa(totalMLVersions.Deleted)},
-			{"evaluations", strconv.Itoa(totalMLEvaluations.Found), mlNoColumn, strconv.Itoa(totalMLEvaluations.Created), strconv.Itoa(totalMLEvaluations.Updated), mlNoColumn},
+			{"projects", strconv.Itoa(totalMLProjects.Found), mlNoColumn, strconv.Itoa(totalMLProjects.Created), strconv.Itoa(totalMLProjects.Updated)},
+			{"experiments", strconv.Itoa(totalMLExperiments.Found), mlNoColumn, strconv.Itoa(totalMLExperiments.Created), strconv.Itoa(totalMLExperiments.Updated)},
+			{"datasets", strconv.Itoa(totalMLDatasets.Found), mlNoColumn, strconv.Itoa(totalMLDatasets.Created), strconv.Itoa(totalMLDatasets.Updated)},
+			{"runs", strconv.Itoa(totalMLRuns.Found), mlNoColumn, strconv.Itoa(totalMLRuns.Created), strconv.Itoa(totalMLRuns.Updated)},
+			{"artifacts", strconv.Itoa(totalMLArtifacts.Found), mlNoColumn, strconv.Itoa(totalMLArtifacts.Created), strconv.Itoa(totalMLArtifacts.Updated)},
+			{"models", strconv.Itoa(totalMLModels.Found), mlNoColumn, strconv.Itoa(totalMLModels.Created), strconv.Itoa(totalMLModels.Updated)},
+			{"versions", strconv.Itoa(totalMLVersions.Found), strconv.Itoa(totalMLVersions.UpToDate), strconv.Itoa(totalMLVersions.Created), strconv.Itoa(totalMLVersions.Updated)},
+			{"evaluations", strconv.Itoa(totalMLEvaluations.Found), mlNoColumn, strconv.Itoa(totalMLEvaluations.Created), strconv.Itoa(totalMLEvaluations.Updated)},
 		}
 		if dryRun {
 			for i := range rows {
