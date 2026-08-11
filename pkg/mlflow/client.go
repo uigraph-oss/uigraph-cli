@@ -71,12 +71,13 @@ type RunInputs struct {
 }
 
 type RunInfo struct {
-	RunID        string `json:"run_id"`
-	ExperimentID string `json:"experiment_id"`
-	RunName      string `json:"run_name"`
-	Status       string `json:"status"`
-	StartTime    *int64 `json:"start_time"`
-	EndTime      *int64 `json:"end_time"`
+	RunID          string `json:"run_id"`
+	ExperimentID   string `json:"experiment_id"`
+	RunName        string `json:"run_name"`
+	Status         string `json:"status"`
+	StartTime      *int64 `json:"start_time"`
+	EndTime        *int64 `json:"end_time"`
+	LifecycleStage string `json:"lifecycle_stage"`
 }
 
 type RunData struct {
@@ -211,7 +212,7 @@ func (c *Client) SearchRuns(ctx context.Context, experimentID string, since time
 	for {
 		reqBody := map[string]any{
 			"experiment_ids": []string{experimentID},
-			"run_view_type":  "ALL",
+			"run_view_type":  "ACTIVE_ONLY",
 			"max_results":    1000,
 		}
 		if !since.IsZero() {
@@ -231,6 +232,38 @@ func (c *Client) SearchRuns(ctx context.Context, experimentID string, since time
 		}
 		if err := json.Unmarshal(body, &out); err != nil {
 			return fmt.Errorf("failed to parse runs: %w", err)
+		}
+		if err := page(out.Runs); err != nil {
+			return err
+		}
+		token = out.NextPageToken
+		if token == "" {
+			return nil
+		}
+	}
+}
+
+func (c *Client) SearchDeletedRuns(ctx context.Context, experimentID string, page func([]Run) error) error {
+	token := ""
+	for {
+		reqBody := map[string]any{
+			"experiment_ids": []string{experimentID},
+			"run_view_type":  "DELETED_ONLY",
+			"max_results":    1000,
+		}
+		if token != "" {
+			reqBody["page_token"] = token
+		}
+		body, err := c.post(ctx, "runs/search", reqBody)
+		if err != nil {
+			return err
+		}
+		var out struct {
+			Runs          []Run  `json:"runs"`
+			NextPageToken string `json:"next_page_token"`
+		}
+		if err := json.Unmarshal(body, &out); err != nil {
+			return fmt.Errorf("failed to parse deleted runs: %w", err)
 		}
 		if err := page(out.Runs); err != nil {
 			return err

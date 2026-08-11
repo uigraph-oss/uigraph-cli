@@ -9,33 +9,56 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 )
 
+type EntityCount struct {
+	Found    int
+	UpToDate int
+	Created  int
+	Updated  int
+	Deleted  int
+}
+
+func (c *EntityCount) add(res gateway.SyncResult) {
+	c.Created += res.Created
+	c.Updated += res.Updated
+}
+
+func (c *EntityCount) Merge(o EntityCount) {
+	c.Found += o.Found
+	c.UpToDate += o.UpToDate
+	c.Created += o.Created
+	c.Updated += o.Updated
+	c.Deleted += o.Deleted
+}
+
 type TrainingSink struct {
-	Experiment func(gateway.MLExperimentItem) error
-	Dataset    func(gateway.MLDatasetItem) error
-	Run        func(gateway.MLRunItem) error
-	Artifact   func(gateway.MLArtifactItem) error
+	Experiment func(gateway.MLExperimentItem) (gateway.SyncResult, error)
+	Dataset    func(gateway.MLDatasetItem) (gateway.SyncResult, error)
+	Run        func(gateway.MLRunItem) (gateway.SyncResult, error)
+	Artifact   func(gateway.MLArtifactItem) (gateway.SyncResult, error)
+	DeletedRun func(mlflowID string) (int, error)
 }
 
 type TrainingSummary struct {
-	Experiments         int
-	Datasets            int
-	Runs                int
-	Artifacts           int
+	Experiments         EntityCount
+	Datasets            EntityCount
+	Runs                EntityCount
+	Artifacts           EntityCount
 	ExperimentMLflowIDs []string
 	EvaluatedModelIDs   []string
 }
 
 type ModelSink struct {
-	Model           func(gateway.MLModelItem) error
-	Version         func(gateway.MLVersionItem) error
-	Evaluation      func(gateway.MLEvaluationItem) error
-	ProductionModel func(gateway.MLModelItem) error
+	Model           func(gateway.MLModelItem) (gateway.SyncResult, error)
+	Version         func(gateway.MLVersionItem) (gateway.SyncResult, error)
+	Evaluation      func(gateway.MLEvaluationItem) (gateway.SyncResult, error)
+	PruneVersions   func(modelMLflowID string, keep []string) (int, error)
+	ProductionModel func(gateway.MLModelItem) (gateway.SyncResult, error)
 }
 
 type ModelSummary struct {
-	Models            int
-	Versions          int
-	UnchangedVersions int
+	Models      EntityCount
+	Versions    EntityCount
+	Evaluations EntityCount
 }
 
 func SyncTraining(ctx context.Context, client *Client, project config.MLProjectRef, since time.Time, sink TrainingSink) (TrainingSummary, error) {
@@ -52,10 +75,12 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 			return summary, fmt.Errorf("experiment %q: %w", ref.Name, err)
 		}
 		experimentItem := experimentToItem(exp, project.Name)
-		if err := sink.Experiment(experimentItem); err != nil {
+		res, err := sink.Experiment(experimentItem)
+		if err != nil {
 			return summary, fmt.Errorf("experiment %q: %w", ref.Name, err)
 		}
-		summary.Experiments++
+		summary.Experiments.Found++
+		summary.Experiments.add(res)
 		summary.ExperimentMLflowIDs = append(summary.ExperimentMLflowIDs, experimentItem.MLflowID)
 		experimentEmail := tagValue(exp.Tags, userTagKey)
 
@@ -85,17 +110,21 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 							continue
 						}
 						datasetSeen[key] = true
-						if err := sink.Dataset(item); err != nil {
+						res, err := sink.Dataset(item)
+						if err != nil {
 							return err
 						}
-						summary.Datasets++
+						summary.Datasets.Found++
+						summary.Datasets.add(res)
 					}
 				}
 
-				if err := sink.Run(runToItem(run, experimentEmail)); err != nil {
+				res, err := sink.Run(runToItem(run, experimentEmail))
+				if err != nil {
 					return err
 				}
-				summary.Runs++
+				summary.Runs.Found++
+				summary.Runs.add(res)
 
 				var modelIDs []string
 				if run.Outputs != nil {
@@ -112,10 +141,12 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 							return fmt.Errorf("run %q logged model %q artifacts: %w", run.Info.RunID, modelID, err)
 						}
 						for _, f := range artifacts {
-							if err := sink.Artifact(loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f, runEmail)); err != nil {
+							res, err := sink.Artifact(loggedModelArtifactToItem(client.baseURL, run.Info.RunID, modelID, f, runEmail))
+							if err != nil {
 								return err
 							}
-							summary.Artifacts++
+							summary.Artifacts.Found++
+							summary.Artifacts.add(res)
 						}
 					}
 				} else {
@@ -124,10 +155,12 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 						return fmt.Errorf("run %q artifacts: %w", run.Info.RunID, err)
 					}
 					for _, f := range artifacts {
-						if err := sink.Artifact(artifactToItem(client.baseURL, run.Info.RunID, f, runEmail)); err != nil {
+						res, err := sink.Artifact(artifactToItem(client.baseURL, run.Info.RunID, f, runEmail))
+						if err != nil {
 							return err
 						}
-						summary.Artifacts++
+						summary.Artifacts.Found++
+						summary.Artifacts.add(res)
 					}
 				}
 			}
@@ -135,6 +168,20 @@ func SyncTraining(ctx context.Context, client *Client, project config.MLProjectR
 		})
 		if err != nil {
 			return summary, fmt.Errorf("experiment %q runs: %w", ref.Name, err)
+		}
+
+		err = client.SearchDeletedRuns(ctx, exp.ExperimentID, func(runs []Run) error {
+			for _, run := range runs {
+				deleted, err := sink.DeletedRun(run.Info.RunID)
+				if err != nil {
+					return err
+				}
+				summary.Runs.Deleted += deleted
+			}
+			return nil
+		})
+		if err != nil {
+			return summary, fmt.Errorf("experiment %q deleted runs: %w", ref.Name, err)
 		}
 	}
 
@@ -211,29 +258,35 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 		item.Limitations = ref.Limitations
 		item.Recommendations = ref.Recommendations
 		item.Considerations = ref.Considerations
-		if err := sink.Model(item); err != nil {
+		res, err := sink.Model(item)
+		if err != nil {
 			return summary, fmt.Errorf("model %q: %w", ref.Name, err)
 		}
-		summary.Models++
+		summary.Models.Found++
+		summary.Models.add(res)
 
 		var productionVersion *string
+		keep := []string{}
 		err = client.ModelVersions(ctx, ref.Name, func(versions []ModelVersion) error {
 			for _, v := range versions {
 				versionMLflowID := fmt.Sprintf("%s/%s", v.Name, v.Version)
+				keep = append(keep, versionMLflowID)
 				if v.CurrentStage == "Production" {
 					id := versionMLflowID
 					productionVersion = &id
 				}
 
+				summary.Versions.Found++
 				changed := versionChangedSince(v, since)
 				if changed {
-					if err := sink.Version(versionToItem(v, modelEmail)); err != nil {
+					res, err := sink.Version(versionToItem(v, modelEmail))
+					if err != nil {
 						return err
 					}
-					summary.Versions++
+					summary.Versions.add(res)
 				}
 				if !changed {
-					summary.UnchangedVersions++
+					summary.Versions.UpToDate++
 				}
 
 				if !changed && !changedEvaluatedModelIDs[loggedModelIDFromSource(v.Source)] {
@@ -250,9 +303,12 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 					return fmt.Errorf("version %q evaluations: %w", v.Version, err)
 				}
 				for _, e := range evaluations {
-					if err := sink.Evaluation(e); err != nil {
+					res, err := sink.Evaluation(e)
+					if err != nil {
 						return err
 					}
+					summary.Evaluations.Found++
+					summary.Evaluations.add(res)
 				}
 			}
 			return nil
@@ -261,9 +317,15 @@ func SyncModels(ctx context.Context, client *Client, project config.MLProjectRef
 			return summary, fmt.Errorf("model %q versions: %w", ref.Name, err)
 		}
 
+		deleted, err := sink.PruneVersions(item.MLflowID, keep)
+		if err != nil {
+			return summary, fmt.Errorf("model %q stale versions: %w", ref.Name, err)
+		}
+		summary.Versions.Deleted += deleted
+
 		production := item
 		production.ProductionVersionMLflowID = productionVersion
-		if err := sink.ProductionModel(production); err != nil {
+		if _, err := sink.ProductionModel(production); err != nil {
 			return summary, fmt.Errorf("model %q production version: %w", ref.Name, err)
 		}
 	}

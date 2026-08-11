@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -58,6 +59,32 @@ func pluralize(count int, singular, plural string) string {
 		return singular
 	}
 	return plural
+}
+
+// mlNoColumn marks a column that has no meaning for an entity
+const mlNoColumn = "-"
+
+// printMLCounts prints the found/up-to-date/created/updated/deleted table
+func printMLCounts(indent string, rows [][]string) {
+	header := []string{"entity", "found", "up-to-date", "created", "updated", "deleted"}
+	widths := make([]int, len(header))
+	for i, cell := range header {
+		widths[i] = len(cell)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if len(cell) > widths[i] {
+				widths[i] = len(cell)
+			}
+		}
+	}
+	for _, row := range append([][]string{header}, rows...) {
+		line := indent + fmt.Sprintf("%-*s", widths[0], row[0])
+		for i := 1; i < len(row); i++ {
+			line += fmt.Sprintf("  %*s", widths[i], row[i])
+		}
+		fmt.Println(line)
+	}
 }
 
 // formatDuration formats duration in a human-readable way
@@ -853,8 +880,14 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// 13. Sync ML projects (models & experiments from MLflow)
-	totalMLModels := 0
-	totalMLExperiments := 0
+	totalMLProjects := mlflow.EntityCount{}
+	totalMLExperiments := mlflow.EntityCount{}
+	totalMLDatasets := mlflow.EntityCount{}
+	totalMLRuns := mlflow.EntityCount{}
+	totalMLArtifacts := mlflow.EntityCount{}
+	totalMLModels := mlflow.EntityCount{}
+	totalMLVersions := mlflow.EntityCount{}
+	totalMLEvaluations := mlflow.EntityCount{}
 	if len(cfg.ML) > 0 {
 		fmt.Printf("\n🤖 Syncing %d ML %s...\n", len(cfg.ML), pluralize(len(cfg.ML), "project", "projects"))
 
@@ -920,43 +953,53 @@ func runSync(cmd *cobra.Command, args []string) error {
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Training Project (%s) ===\n", project.Name)
 				}
+				totalMLProjects.Found++
 				if !dryRun {
-					if err := client.SyncMLProject(ctx, projectItem); err != nil {
+					res, err := client.SyncMLProject(ctx, projectItem)
+					if err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
 					}
+					totalMLProjects.Created += res.Created
+					totalMLProjects.Updated += res.Updated
 				}
 
 				runProgress := 0
 				sink := mlflow.TrainingSink{
-					Experiment: func(item gateway.MLExperimentItem) error {
+					Experiment: func(item gateway.MLExperimentItem) (gateway.SyncResult, error) {
 						if dryRun {
 							data, _ := json.MarshalIndent(item, "", "  ")
 							fmt.Println(string(data))
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLExperiment(ctx, item)
 					},
-					Dataset: func(item gateway.MLDatasetItem) error {
+					Dataset: func(item gateway.MLDatasetItem) (gateway.SyncResult, error) {
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLDataset(ctx, item)
 					},
-					Run: func(item gateway.MLRunItem) error {
+					Run: func(item gateway.MLRunItem) (gateway.SyncResult, error) {
 						runProgress++
 						if runProgress%1000 == 0 {
 							fmt.Printf("      … %d runs\n", runProgress)
 						}
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLRun(ctx, item)
 					},
-					Artifact: func(item gateway.MLArtifactItem) error {
+					Artifact: func(item gateway.MLArtifactItem) (gateway.SyncResult, error) {
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLArtifact(ctx, item)
+					},
+					DeletedRun: func(mlflowID string) (int, error) {
+						if dryRun {
+							return 0, nil
+						}
+						return client.PruneMLRun(ctx, mlflowID)
 					},
 				}
 
@@ -964,7 +1007,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 				if err != nil {
 					exitGatewayErrorErr(fmt.Sprintf("sync ML project %q from MLflow", project.Name), err)
 				}
-				totalMLExperiments += ts.Experiments
+				totalMLExperiments.Merge(ts.Experiments)
+				totalMLDatasets.Merge(ts.Datasets)
+				totalMLRuns.Merge(ts.Runs)
+				totalMLArtifacts.Merge(ts.Artifacts)
 				for _, id := range ts.ExperimentMLflowIDs {
 					syncedExperiments[sourceURL+"\x00"+id] = true
 				}
@@ -972,12 +1018,22 @@ func runSync(cmd *cobra.Command, args []string) error {
 					evaluatedModelIDs[sourceURL+"\x00"+modelID] = true
 				}
 
-				if dryRun {
-					fmt.Printf("  Experiments: %d, Runs: %d, Datasets: %d, Artifacts: %d\n",
-						ts.Experiments, ts.Runs, ts.Datasets, ts.Artifacts)
+				rows := [][]string{
+					{"experiments", strconv.Itoa(ts.Experiments.Found), mlNoColumn, strconv.Itoa(ts.Experiments.Created), strconv.Itoa(ts.Experiments.Updated), mlNoColumn},
+					{"datasets", strconv.Itoa(ts.Datasets.Found), mlNoColumn, strconv.Itoa(ts.Datasets.Created), strconv.Itoa(ts.Datasets.Updated), mlNoColumn},
+					{"runs", strconv.Itoa(ts.Runs.Found), mlNoColumn, strconv.Itoa(ts.Runs.Created), strconv.Itoa(ts.Runs.Updated), strconv.Itoa(ts.Runs.Deleted)},
+					{"artifacts", strconv.Itoa(ts.Artifacts.Found), mlNoColumn, strconv.Itoa(ts.Artifacts.Created), strconv.Itoa(ts.Artifacts.Updated), mlNoColumn},
 				}
+				if dryRun {
+					for i := range rows {
+						rows[i][3] = mlNoColumn
+						rows[i][4] = mlNoColumn
+						rows[i][5] = mlNoColumn
+					}
+				}
+				printMLCounts("      ", rows)
 				if !dryRun {
-					fmt.Printf("    ✓ ML project synced: %s (%d experiments, %d runs, %d artifacts)\n", project.Name, ts.Experiments, ts.Runs, ts.Artifacts)
+					fmt.Println("    ✓ synced")
 				}
 			}
 
@@ -992,48 +1048,56 @@ func runSync(cmd *cobra.Command, args []string) error {
 				if dryRun {
 					fmt.Printf("\n=== DRY RUN: ML Model Project (%s) ===\n", project.Name)
 				}
+				totalMLProjects.Found++
 				if !dryRun {
-					if err := client.SyncMLProject(ctx, projectItem); err != nil {
+					res, err := client.SyncMLProject(ctx, projectItem)
+					if err != nil {
 						exitGatewayErrorErr(fmt.Sprintf("sync ML project %q", project.Name), err)
 					}
+					totalMLProjects.Created += res.Created
+					totalMLProjects.Updated += res.Updated
 				}
 
 				versionProgress := 0
-				syncedEvaluations := 0
 				skippedEvaluations := 0
 				sink := mlflow.ModelSink{
-					Model: func(item gateway.MLModelItem) error {
+					Model: func(item gateway.MLModelItem) (gateway.SyncResult, error) {
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLModel(ctx, item)
 					},
-					Version: func(item gateway.MLVersionItem) error {
+					Version: func(item gateway.MLVersionItem) (gateway.SyncResult, error) {
 						versionProgress++
 						if versionProgress%1000 == 0 {
 							fmt.Printf("      … %d versions\n", versionProgress)
 						}
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLVersion(ctx, item)
 					},
-					Evaluation: func(item gateway.MLEvaluationItem) error {
+					Evaluation: func(item gateway.MLEvaluationItem) (gateway.SyncResult, error) {
 						if !syncedExperiments[sourceURL+"\x00"+item.ExperimentMLflowID] {
 							skippedEvaluations++
-							return nil
+							return gateway.SyncResult{}, nil
 						}
-						syncedEvaluations++
 						if dryRun {
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLEvaluation(ctx, item)
 					},
-					ProductionModel: func(item gateway.MLModelItem) error {
+					PruneVersions: func(modelMLflowID string, keep []string) (int, error) {
+						if dryRun {
+							return 0, nil
+						}
+						return client.PruneMLVersions(ctx, modelMLflowID, keep)
+					},
+					ProductionModel: func(item gateway.MLModelItem) (gateway.SyncResult, error) {
 						if dryRun {
 							data, _ := json.MarshalIndent(item, "", "  ")
 							fmt.Println(string(data))
-							return nil
+							return gateway.SyncResult{}, nil
 						}
 						return client.SyncMLModel(ctx, item)
 					},
@@ -1043,13 +1107,28 @@ func runSync(cmd *cobra.Command, args []string) error {
 				if err != nil {
 					exitGatewayErrorErr(fmt.Sprintf("sync ML project %q from MLflow", project.Name), err)
 				}
-				totalMLModels += ms.Models
+				totalMLModels.Merge(ms.Models)
+				totalMLVersions.Merge(ms.Versions)
+				totalMLEvaluations.Merge(ms.Evaluations)
 
+				rows := [][]string{
+					{"models", strconv.Itoa(ms.Models.Found), mlNoColumn, strconv.Itoa(ms.Models.Created), strconv.Itoa(ms.Models.Updated), mlNoColumn},
+					{"versions", strconv.Itoa(ms.Versions.Found), strconv.Itoa(ms.Versions.UpToDate), strconv.Itoa(ms.Versions.Created), strconv.Itoa(ms.Versions.Updated), strconv.Itoa(ms.Versions.Deleted)},
+					{"evaluations", strconv.Itoa(ms.Evaluations.Found), mlNoColumn, strconv.Itoa(ms.Evaluations.Created), strconv.Itoa(ms.Evaluations.Updated), mlNoColumn},
+				}
 				if dryRun {
-					fmt.Printf("  Models: %d, Versions: %d (%d unchanged), Evaluations: %d (skipped %d)\n", ms.Models, ms.Versions, ms.UnchangedVersions, syncedEvaluations, skippedEvaluations)
+					for i := range rows {
+						rows[i][3] = mlNoColumn
+						rows[i][4] = mlNoColumn
+						rows[i][5] = mlNoColumn
+					}
+				}
+				printMLCounts("      ", rows)
+				if skippedEvaluations > 0 {
+					fmt.Printf("      %d evaluations skipped\n", skippedEvaluations)
 				}
 				if !dryRun {
-					fmt.Printf("    ✓ ML project synced: %s (%d models, %d versions, %d versions unchanged, %d evaluations, %d evaluations skipped)\n", project.Name, ms.Models, ms.Versions, ms.UnchangedVersions, syncedEvaluations, skippedEvaluations)
+					fmt.Println("    ✓ synced")
 				}
 			}
 		}
@@ -1080,7 +1159,27 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Cost Tags: %d (%d created, %d deleted, %d unchanged)\n", len(cfg.CostTags), costTagsCreated, costTagsDeleted, costTagsUnchanged)
 	fmt.Printf("Timeline Events: %d (%d created, %d updated)\n", len(timelineEvents), timelineCreated, timelineUpdated)
 	fmt.Printf("Maps: %d (Frames: %d, Focal Points: %d, Components: %d)\n", len(cfg.Maps), totalFrames, totalFocalPoints, totalComponents)
-	fmt.Printf("ML Projects: %d (Models: %d, Experiments: %d)\n", len(cfg.ML), totalMLModels, totalMLExperiments)
+	fmt.Printf("ML Projects: %d\n", len(cfg.ML))
+	if len(cfg.ML) > 0 {
+		rows := [][]string{
+			{"projects", strconv.Itoa(totalMLProjects.Found), mlNoColumn, strconv.Itoa(totalMLProjects.Created), strconv.Itoa(totalMLProjects.Updated), mlNoColumn},
+			{"experiments", strconv.Itoa(totalMLExperiments.Found), mlNoColumn, strconv.Itoa(totalMLExperiments.Created), strconv.Itoa(totalMLExperiments.Updated), mlNoColumn},
+			{"datasets", strconv.Itoa(totalMLDatasets.Found), mlNoColumn, strconv.Itoa(totalMLDatasets.Created), strconv.Itoa(totalMLDatasets.Updated), mlNoColumn},
+			{"runs", strconv.Itoa(totalMLRuns.Found), mlNoColumn, strconv.Itoa(totalMLRuns.Created), strconv.Itoa(totalMLRuns.Updated), strconv.Itoa(totalMLRuns.Deleted)},
+			{"artifacts", strconv.Itoa(totalMLArtifacts.Found), mlNoColumn, strconv.Itoa(totalMLArtifacts.Created), strconv.Itoa(totalMLArtifacts.Updated), mlNoColumn},
+			{"models", strconv.Itoa(totalMLModels.Found), mlNoColumn, strconv.Itoa(totalMLModels.Created), strconv.Itoa(totalMLModels.Updated), mlNoColumn},
+			{"versions", strconv.Itoa(totalMLVersions.Found), strconv.Itoa(totalMLVersions.UpToDate), strconv.Itoa(totalMLVersions.Created), strconv.Itoa(totalMLVersions.Updated), strconv.Itoa(totalMLVersions.Deleted)},
+			{"evaluations", strconv.Itoa(totalMLEvaluations.Found), mlNoColumn, strconv.Itoa(totalMLEvaluations.Created), strconv.Itoa(totalMLEvaluations.Updated), mlNoColumn},
+		}
+		if dryRun {
+			for i := range rows {
+				rows[i][3] = mlNoColumn
+				rows[i][4] = mlNoColumn
+				rows[i][5] = mlNoColumn
+			}
+		}
+		printMLCounts("  ", rows)
+	}
 	fmt.Printf("Duration: %s\n", formatDuration(elapsed))
 	if dryRun {
 		fmt.Println("\n(Dry run - no data sent to gateway)")

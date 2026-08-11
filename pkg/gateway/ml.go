@@ -123,13 +123,33 @@ type MLEvaluationItem struct {
 	UserEmail          string         `json:"userEmail,omitempty"`
 }
 
+type MLRunPruneItem struct {
+	MLflowID string `json:"mlflowId"`
+}
+
+type MLVersionPruneItem struct {
+	ModelMLflowID string   `json:"modelMlflowId"`
+	Keep          []string `json:"keep"`
+}
+
 type MLProjectState struct {
 	Name     string     `json:"name"`
 	SyncedAt *time.Time `json:"syncedAt"`
 }
 
+type SyncResult struct {
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+}
+
 type mlSyncResponse struct {
-	Synced int `json:"synced"`
+	Synced  int `json:"synced"`
+	Created int `json:"created"`
+	Updated int `json:"updated"`
+}
+
+type mlPruneResponse struct {
+	Deleted int `json:"deleted"`
 }
 
 func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
@@ -168,15 +188,15 @@ func (c *Client) ListMLProjects(ctx context.Context) ([]MLProjectState, error) {
 	return listResp.Projects, nil
 }
 
-func (c *Client) postMLSync(ctx context.Context, path string, payload any) (int, error) {
+func (c *Client) postML(ctx context.Context, path string, payload any) ([]byte, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return 0, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s%s", c.baseURL, path), bytes.NewReader(body))
 	if err != nil {
-		return 0, fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -184,63 +204,89 @@ func (c *Client) postMLSync(ctx context.Context, path string, payload any) (int,
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return 0, fmt.Errorf("request failed: %w", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return 0, fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
-		return 0, formatGatewayError(resp.StatusCode, respBody)
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	return respBody, nil
+}
+
+func (c *Client) postMLSync(ctx context.Context, path string, payload any) (SyncResult, error) {
+	respBody, err := c.postML(ctx, path, payload)
+	if err != nil {
+		return SyncResult{}, err
 	}
 
 	var syncResp mlSyncResponse
 	if err := json.Unmarshal(respBody, &syncResp); err != nil {
+		return SyncResult{}, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return SyncResult{Created: syncResp.Created, Updated: syncResp.Updated}, nil
+}
+
+func (c *Client) postMLPrune(ctx context.Context, path string, payload any) (int, error) {
+	respBody, err := c.postML(ctx, path, payload)
+	if err != nil {
+		return 0, err
+	}
+
+	var pruneResp mlPruneResponse
+	if err := json.Unmarshal(respBody, &pruneResp); err != nil {
 		return 0, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	return syncResp.Synced, nil
+	return pruneResp.Deleted, nil
 }
 
-func (c *Client) SyncMLProject(ctx context.Context, item MLProjectItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/projects", []MLProjectItem{item})
-	return err
+func (c *Client) SyncMLProject(ctx context.Context, item MLProjectItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/projects", []MLProjectItem{item})
 }
 
-func (c *Client) SyncMLModel(ctx context.Context, item MLModelItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/models", []MLModelItem{item})
-	return err
+func (c *Client) SyncMLModel(ctx context.Context, item MLModelItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/models", []MLModelItem{item})
 }
 
-func (c *Client) SyncMLVersion(ctx context.Context, item MLVersionItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/versions", []MLVersionItem{item})
-	return err
+func (c *Client) SyncMLVersion(ctx context.Context, item MLVersionItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/versions", []MLVersionItem{item})
 }
 
-func (c *Client) SyncMLExperiment(ctx context.Context, item MLExperimentItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/experiments", []MLExperimentItem{item})
-	return err
+func (c *Client) SyncMLExperiment(ctx context.Context, item MLExperimentItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/experiments", []MLExperimentItem{item})
 }
 
-func (c *Client) SyncMLRun(ctx context.Context, item MLRunItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/runs", []MLRunItem{item})
-	return err
+func (c *Client) SyncMLRun(ctx context.Context, item MLRunItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/runs", []MLRunItem{item})
 }
 
-func (c *Client) SyncMLArtifact(ctx context.Context, item MLArtifactItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/artifacts", []MLArtifactItem{item})
-	return err
+func (c *Client) SyncMLArtifact(ctx context.Context, item MLArtifactItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/artifacts", []MLArtifactItem{item})
 }
 
-func (c *Client) SyncMLDataset(ctx context.Context, item MLDatasetItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/datasets", []MLDatasetItem{item})
-	return err
+func (c *Client) SyncMLDataset(ctx context.Context, item MLDatasetItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/datasets", []MLDatasetItem{item})
 }
 
-func (c *Client) SyncMLEvaluation(ctx context.Context, item MLEvaluationItem) error {
-	_, err := c.postMLSync(ctx, "/v1/sync/ml/evaluations", []MLEvaluationItem{item})
-	return err
+func (c *Client) SyncMLEvaluation(ctx context.Context, item MLEvaluationItem) (SyncResult, error) {
+	return c.postMLSync(ctx, "/v1/sync/ml/evaluations", []MLEvaluationItem{item})
+}
+
+func (c *Client) PruneMLRun(ctx context.Context, mlflowID string) (int, error) {
+	return c.postMLPrune(ctx, "/v1/sync/ml/runs/prune", []MLRunPruneItem{{MLflowID: mlflowID}})
+}
+
+func (c *Client) PruneMLVersions(ctx context.Context, modelMLflowID string, keep []string) (int, error) {
+	if keep == nil {
+		keep = []string{}
+	}
+	return c.postMLPrune(ctx, "/v1/sync/ml/versions/prune", MLVersionPruneItem{ModelMLflowID: modelMLflowID, Keep: keep})
 }
