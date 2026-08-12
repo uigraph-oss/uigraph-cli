@@ -1058,15 +1058,17 @@ func runSync(cmd *cobra.Command, args []string) error {
 				printMLTable("      ", []string{"entity", "found", "created", "updated"}, rows)
 
 				totalTime := time.Since(projectStart)
-				printMLTable("      ", []string{"step", "time", "requests"}, [][]string{
-					{"mlflow reads", formatDuration(mlflowClient.Elapsed), strconv.Itoa(mlflowClient.Requests)},
-					{"project", formatDuration(projectTime), strconv.Itoa(projectReqs)},
-					{"experiments", formatDuration(experimentTime), strconv.Itoa(experimentReqs)},
-					{"datasets", formatDuration(datasetTime), strconv.Itoa(datasetReqs)},
-					{"runs", formatDuration(runTime), strconv.Itoa(runReqs)},
-					{"artifacts", formatDuration(artifactTime), strconv.Itoa(artifactReqs)},
-					{"total", formatDuration(totalTime), mlNoColumn},
-				})
+				if verbose {
+					printMLTable("      ", []string{"step", "time", "requests"}, [][]string{
+						{"mlflow reads", formatDuration(mlflowClient.Elapsed), strconv.Itoa(mlflowClient.Requests)},
+						{"project", formatDuration(projectTime), strconv.Itoa(projectReqs)},
+						{"experiments", formatDuration(experimentTime), strconv.Itoa(experimentReqs)},
+						{"datasets", formatDuration(datasetTime), strconv.Itoa(datasetReqs)},
+						{"runs", formatDuration(runTime), strconv.Itoa(runReqs)},
+						{"artifacts", formatDuration(artifactTime), strconv.Itoa(artifactReqs)},
+						{"total", formatDuration(totalTime), mlNoColumn},
+					})
+				}
 				if !dryRun {
 					fmt.Println("    ✓ synced")
 				}
@@ -1177,15 +1179,17 @@ func runSync(cmd *cobra.Command, args []string) error {
 				printMLTable("      ", []string{"entity", "found", "created", "updated"}, rows)
 
 				totalTime := time.Since(projectStart)
-				printMLTable("      ", []string{"step", "time", "requests"}, [][]string{
-					{"mlflow reads", formatDuration(mlflowClient.Elapsed), strconv.Itoa(mlflowClient.Requests)},
-					{"project", formatDuration(projectTime), strconv.Itoa(projectReqs)},
-					{"models", formatDuration(modelTime), strconv.Itoa(modelReqs)},
-					{"versions", formatDuration(versionTime), strconv.Itoa(versionReqs)},
-					{"evaluations", formatDuration(evaluationTime), strconv.Itoa(evaluationReqs)},
-					{"production", formatDuration(productionTime), strconv.Itoa(productionReqs)},
-					{"total", formatDuration(totalTime), mlNoColumn},
-				})
+				if verbose {
+					printMLTable("      ", []string{"step", "time", "requests"}, [][]string{
+						{"mlflow reads", formatDuration(mlflowClient.Elapsed), strconv.Itoa(mlflowClient.Requests)},
+						{"project", formatDuration(projectTime), strconv.Itoa(projectReqs)},
+						{"models", formatDuration(modelTime), strconv.Itoa(modelReqs)},
+						{"versions", formatDuration(versionTime), strconv.Itoa(versionReqs)},
+						{"evaluations", formatDuration(evaluationTime), strconv.Itoa(evaluationReqs)},
+						{"production", formatDuration(productionTime), strconv.Itoa(productionReqs)},
+						{"total", formatDuration(totalTime), mlNoColumn},
+					})
+				}
 				if skippedEvaluations > 0 {
 					fmt.Printf("      %d evaluations skipped\n", skippedEvaluations)
 				}
