@@ -20,7 +20,6 @@ import (
 	"github.com/uigraph-oss/uigraph-cli/pkg/gateway"
 	"github.com/uigraph-oss/uigraph-cli/pkg/git"
 	"github.com/uigraph-oss/uigraph-cli/pkg/mlflow"
-	"github.com/uigraph-oss/uigraph-cli/pkg/timeline"
 )
 
 var (
@@ -117,13 +116,8 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	// 2. Load and validate config
 	fmt.Printf("📦 Loading config from: %s\n", configPath)
-	cfg, err := config.Load(configPath)
+	cfg, timelineEvents, err := loadAndValidateArtifacts(configPath, true)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
-		os.Exit(1)
-	}
-
-	if err := cfg.Validate(); err != nil {
 		fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
 		os.Exit(1)
 	}
@@ -675,17 +669,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// 11b. Sync timeline events scanned from the repo
-	timelineEvents := []timeline.Event{}
 	timelineCreated := 0
 	timelineUpdated := 0
 	if cfg.Timeline != nil {
-		scanned, err := timeline.Scan(cfg)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Timeline scan error: %v\n", err)
-			os.Exit(1)
-		}
-		timelineEvents = scanned
-
 		fmt.Printf("\n🕓 Syncing %d timeline %s...\n", len(timelineEvents), pluralize(len(timelineEvents), "event", "events"))
 		if dryRun {
 			fmt.Println("\n=== DRY RUN: Timeline Events ===")

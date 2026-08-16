@@ -1,0 +1,6 @@
+testCases:
+  - type: manual
+    title: Fixture renders
+    order: 1
+    screenshots:
+      - screenshot.png

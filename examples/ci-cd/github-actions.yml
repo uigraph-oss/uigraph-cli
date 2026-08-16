@@ -17,14 +17,17 @@ jobs:
 
       - name: Install UiGraph CLI
         run: |
-            go install github.com/uigraph-oss/uigraph-cli@latest
-            echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          go install github.com/uigraph-oss/uigraph-cli@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Validate UiGraph artifacts
+        run: uigraph-cli validate
 
       - name: Sync service to UiGraph
         env:
           UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
-          run: |
-            uigraph-cli sync
+          UIGRAPH_GATEWAY_URL: ${{ secrets.UIGRAPH_GATEWAY_URL }}
+        run: uigraph-cli sync
 
   # Records the release on the service timeline at the moment the tag is cut,
   # which is when the notes and commit range are freshest.
@@ -34,7 +37,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # `uigraph release` reads the previous tag and the commit range, so it
+          # `uigraph-cli release` reads the previous tag and commit range, so it
           # needs the full history, not the default shallow clone.
           fetch-depth: 0
 
@@ -50,5 +53,5 @@ jobs:
       - name: Record release on UiGraph timeline
         env:
           UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
-        run: |
-          uigraph release
+          UIGRAPH_GATEWAY_URL: ${{ secrets.UIGRAPH_GATEWAY_URL }}
+        run: uigraph-cli release

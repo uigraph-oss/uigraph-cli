@@ -1,0 +1,16 @@
+version: 1
+project:
+  name: malformed-json
+service:
+  name: fixture-service
+  category: backend
+  description: Malformed diagram context
+  repository:
+    provider: github
+    url: https://github.com/example/fixture
+  ownership:
+    team: platform
+architectureDiagrams:
+  - name: diagram
+    path: diagram.mmd
+    contextPath: context.json

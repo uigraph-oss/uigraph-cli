@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,8 +45,8 @@ type CostTag struct {
 }
 
 type TimelineRef struct {
-	Decisions TimelineScanRef `yaml:"decisions,omitempty"`
-	Incidents TimelineScanRef `yaml:"incidents,omitempty"`
+	Decisions TimelineScanRef    `yaml:"decisions,omitempty"`
+	Incidents TimelineScanRef    `yaml:"incidents,omitempty"`
 	Releases  TimelineReleaseRef `yaml:"releases,omitempty"`
 }
 
@@ -354,6 +355,23 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) Validate() error {
+	if err := c.ValidateLocal(); err != nil {
+		return err
+	}
+
+	for i, p := range c.ML {
+		if p.Source.URLEnv != "" && os.Getenv(p.Source.URLEnv) == "" {
+			return fmt.Errorf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv)
+		}
+		if p.Source.TokenEnv != "" && os.Getenv(p.Source.TokenEnv) == "" {
+			return fmt.Errorf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv)
+		}
+	}
+
+	return nil
+}
+
+func (c *Config) ValidateLocal() error {
 	if c.Version != 1 {
 		return fmt.Errorf("unsupported config version: %d (expected 1)", c.Version)
 	}
@@ -428,8 +446,14 @@ func (c *Config) Validate() error {
 		if api.Path == "" {
 			return fmt.Errorf("apis[%d].path is required", i)
 		}
-		if _, err := os.Stat(api.Path); os.IsNotExist(err) {
-			return fmt.Errorf("apis[%d].path file does not exist: %s", i, api.Path)
+		content, err := readReferencedFile(api.Path, fmt.Sprintf("apis[%d].path", i))
+		if err != nil {
+			return err
+		}
+		if api.Type == "openapi" {
+			if err := validateYAMLOrJSON(api.Path, content); err != nil {
+				return fmt.Errorf("apis[%d].path is malformed: %w", i, err)
+			}
 		}
 	}
 
@@ -485,12 +509,16 @@ func (c *Config) Validate() error {
 		if ad.Path == "" {
 			return fmt.Errorf("architectureDiagrams[%d].path is required", i)
 		}
-		if _, err := os.Stat(ad.Path); os.IsNotExist(err) {
-			return fmt.Errorf("architectureDiagrams[%d].path file does not exist: %s", i, ad.Path)
+		if _, err := readReferencedFile(ad.Path, fmt.Sprintf("architectureDiagrams[%d].path", i)); err != nil {
+			return err
 		}
 		if ad.ContextPath != "" {
-			if _, err := os.Stat(ad.ContextPath); os.IsNotExist(err) {
-				return fmt.Errorf("architectureDiagrams[%d].contextPath file does not exist: %s", i, ad.ContextPath)
+			content, err := readReferencedFile(ad.ContextPath, fmt.Sprintf("architectureDiagrams[%d].contextPath", i))
+			if err != nil {
+				return err
+			}
+			if !json.Valid(content) {
+				return fmt.Errorf("architectureDiagrams[%d].contextPath contains malformed JSON: %s", i, ad.ContextPath)
 			}
 		}
 	}
@@ -579,8 +607,8 @@ func (c *Config) Validate() error {
 		if doc.Path == "" {
 			return fmt.Errorf("docs[%d].path is required", i)
 		}
-		if _, err := os.Stat(doc.Path); os.IsNotExist(err) {
-			return fmt.Errorf("docs[%d].path file does not exist: %s", i, doc.Path)
+		if _, err := readReferencedFile(doc.Path, fmt.Sprintf("docs[%d].path", i)); err != nil {
+			return err
 		}
 		if doc.FileType != "" && !validFileTypes[doc.FileType] {
 			return fmt.Errorf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, other", i)
@@ -602,8 +630,8 @@ func (c *Config) Validate() error {
 				return fmt.Errorf("maps[%d].frames[%d].name is required", i, j)
 			}
 			if frame.ImagePath != "" {
-				if _, err := os.Stat(frame.ImagePath); os.IsNotExist(err) {
-					return fmt.Errorf("maps[%d].frames[%d].imagePath file does not exist: %s", i, j, frame.ImagePath)
+				if _, err := readReferencedFile(frame.ImagePath, fmt.Sprintf("maps[%d].frames[%d].imagePath", i, j)); err != nil {
+					return err
 				}
 			}
 			for k, fp := range frame.FocalPoints {
@@ -649,8 +677,12 @@ func (c *Config) Validate() error {
 		if db.SchemaPath == "" {
 			return fmt.Errorf("databases[%d].schemaPath is required", i)
 		}
-		if _, err := os.Stat(db.SchemaPath); os.IsNotExist(err) {
-			return fmt.Errorf("databases[%d].schemaPath file does not exist: %s", i, db.SchemaPath)
+		content, err := readReferencedFile(db.SchemaPath, fmt.Sprintf("databases[%d].schemaPath", i))
+		if err != nil {
+			return err
+		}
+		if strings.EqualFold(filepath.Ext(db.SchemaPath), ".json") && !json.Valid(content) {
+			return fmt.Errorf("databases[%d].schemaPath contains malformed JSON: %s", i, db.SchemaPath)
 		}
 	}
 
@@ -674,8 +706,8 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("queries[%d]: exactly one of path or queryText is required", i)
 		}
 		if hasPath {
-			if _, err := os.Stat(q.Path); os.IsNotExist(err) {
-				return fmt.Errorf("queries[%d].path file does not exist: %s", i, q.Path)
+			if _, err := readReferencedFile(q.Path, fmt.Sprintf("queries[%d].path", i)); err != nil {
+				return err
 			}
 		}
 	}
@@ -695,12 +727,6 @@ func (c *Config) Validate() error {
 		}
 		if p.Source.URL == "" && p.Source.URLEnv == "" {
 			return fmt.Errorf("ml[%d].source: either url or urlEnv is required", i)
-		}
-		if p.Source.URLEnv != "" && os.Getenv(p.Source.URLEnv) == "" {
-			return fmt.Errorf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv)
-		}
-		if p.Source.TokenEnv != "" && os.Getenv(p.Source.TokenEnv) == "" {
-			return fmt.Errorf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv)
 		}
 		if p.Type == "model" {
 			if len(p.Models) == 0 {
@@ -733,5 +759,34 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+func readReferencedFile(path, field string) ([]byte, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s file does not exist: %s", field, path)
+		}
+		return nil, fmt.Errorf("%s cannot be read: %s: %w", field, path, err)
+	}
+	return content, nil
+}
+
+func validateYAMLOrJSON(path string, content []byte) error {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".json" {
+		if !json.Valid(content) {
+			return fmt.Errorf("invalid JSON in %s", path)
+		}
+		return nil
+	}
+	if ext == ".yaml" || ext == ".yml" {
+		var value interface{}
+		if err := yaml.Unmarshal(content, &value); err != nil {
+			return fmt.Errorf("invalid YAML in %s: %w", path, err)
+		}
+		return nil
+	}
 	return nil
 }

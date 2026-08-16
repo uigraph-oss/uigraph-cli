@@ -1,0 +1,4 @@
+queries:
+  - name: file-query
+    database: primary
+    path: query.sql

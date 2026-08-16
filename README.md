@@ -30,9 +30,10 @@ docker pull uigraph-oss/uigraph-cli:latest
 
 docker run --rm \
   -e UIGRAPH_TOKEN \
+  -e UIGRAPH_GATEWAY_URL \
   -v "$(pwd):/workspace" \
   -w /workspace \
-  uigraph/uigraph-cli:latest sync
+  uigraph-oss/uigraph-cli:latest sync
 ```
 
 Mount your repo at `/workspace` so the CLI can read `.uigraph.yaml` and API specs. Pass any sync flags after the image name (for example `sync --dry-run`).
@@ -48,11 +49,12 @@ make build
 ## Quick Start
 
 1. Add a `.uigraph.yaml` file to your repository.
-2. Set `UIGRAPH_TOKEN` in your CI environment.
-3. Run:
+2. Set `UIGRAPH_TOKEN` and `UIGRAPH_GATEWAY_URL` in your CI environment for sync.
+3. Validate the local artifacts, then sync:
 
 ```bash
-uigraph sync
+uigraph-cli validate
+uigraph-cli sync
 ```
 
 Example:
@@ -81,18 +83,22 @@ apis:
 ## Common Usage
 
 ```bash
-uigraph sync
-uigraph sync --config ./config/.uigraph.yaml
-uigraph sync --dry-run
+uigraph-cli validate
+uigraph-cli validate --config ./config/.uigraph.yaml
+uigraph-cli sync
+uigraph-cli sync --config ./config/.uigraph.yaml
+uigraph-cli sync --dry-run
 ```
+
+`validate` checks the config schema, referenced files, structured YAML/JSON artifacts, and timeline sources locally. It does not read `UIGRAPH_TOKEN` or `UIGRAPH_GATEWAY_URL`, contact the gateway, or connect to MLflow.
 
 Record a release from a tag-triggered pipeline job. The version, notes and
 commit range are resolved from git at the moment the tag is cut:
 
 ```bash
-uigraph release
-uigraph release --version v1.2.3 --notes-file ./RELEASE_NOTES.md
-uigraph release --dry-run
+uigraph-cli release
+uigraph-cli release --version v1.2.3 --notes-file ./RELEASE_NOTES.md
+uigraph-cli release --dry-run
 ```
 
 ## What It Supports
@@ -101,8 +107,9 @@ uigraph release --dry-run
 - Syncing API specs such as OpenAPI, GraphQL, and gRPC
 - Syncing cost category tags that decide which cloud resources roll up into a service's costs
 - Syncing test packs and test cases, including reference screenshots
+- Validating generated artifacts without credentials or network access
 - Scanning the repo for timeline events — ADRs, postmortems, and CHANGELOG releases
-- Recording a release on the timeline from a CI/CD tag job via `uigraph release`
+- Recording a release on the timeline from a CI/CD tag job via `uigraph-cli release`
 - Running cleanly in CI/CD pipelines
 - Capturing git metadata during sync
 

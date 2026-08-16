@@ -1,0 +1,59 @@
+version: 1
+project:
+  name: validation-fixture
+service:
+  name: fixture-service
+  category: backend
+  description: Exercises every local artifact surface
+  repository:
+    provider: github
+    url: https://github.com/example/fixture
+  ownership:
+    team: platform
+apis:
+  - name: fixture-api
+    type: openapi
+    path: openapi.yaml
+architectureDiagrams:
+  - name: fixture-diagram
+    path: diagram.mmd
+    contextPath: context.json
+databases:
+  - name: primary
+    dialect: dynamodb
+    schemaPath: schema.json
+queries:
+  - name: inline-query
+    database: primary
+    queryText: "select 1"
+queryFiles:
+  - queries.yaml
+testPacks:
+  - name: smoke
+    type: smoke
+    testCasesPath: tests.yaml
+docs:
+  - name: guide
+    path: guide.md
+    fileType: markdown
+maps:
+  - name: checkout
+    frames:
+      - name: cart
+        imagePath: frame.png
+timeline:
+  decisions:
+    paths:
+      - adr/*.md
+  releases:
+    changelogPath: CHANGELOG.md
+ml:
+  - name: fixture-models
+    type: model
+    source:
+      type: mlflow
+      urlEnv: VALIDATE_TEST_MLFLOW_URL
+      tokenEnv: VALIDATE_TEST_MLFLOW_TOKEN
+    models:
+      - name: fixture-model
+        problemType: classification

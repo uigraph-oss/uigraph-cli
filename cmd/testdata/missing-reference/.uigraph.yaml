@@ -1,0 +1,16 @@
+version: 1
+project:
+  name: missing-reference
+service:
+  name: fixture-service
+  category: backend
+  description: Missing API file
+  repository:
+    provider: github
+    url: https://github.com/example/fixture
+  ownership:
+    team: platform
+apis:
+  - name: missing
+    type: openapi
+    path: missing.yaml
