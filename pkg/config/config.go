@@ -36,16 +36,14 @@ type Config struct {
 	Timeline             *TimelineRef     `yaml:"timeline,omitempty"`
 }
 
-// A nil CostTags means "not managed by the CLI". A non-nil CostTags means the
-// file owns the full set, so an empty list clears every rule.
 type CostTag struct {
 	Key   string `yaml:"key" json:"key"`
-	Value string `yaml:"value" json:"value"`
+	Value string `yaml:"value"  json:"value"`
 }
 
 type TimelineRef struct {
-	Decisions TimelineScanRef `yaml:"decisions,omitempty"`
-	Incidents TimelineScanRef `yaml:"incidents,omitempty"`
+	Decisions TimelineScanRef    `yaml:"decisions,omitempty"`
+	Incidents TimelineScanRef    `yaml:"incidents,omitempty"`
 	Releases  TimelineReleaseRef `yaml:"releases,omitempty"`
 }
 
