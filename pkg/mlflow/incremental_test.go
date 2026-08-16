@@ -94,9 +94,9 @@ func modelServer(t *testing.T, versions []ModelVersion) (*httptest.Server, *[]st
 		case strings.HasPrefix(path, "logged-models/"):
 			modelID := strings.TrimPrefix(path, "logged-models/")
 			fetched = append(fetched, modelID)
-			_, _ = w.Write([]byte(fmt.Sprintf(
+			_, _ = fmt.Fprintf(w,
 				`{"model":{"info":{"model_id":%q,"source_run_id":"train-run"},"data":{"metrics":[{"key":"f1","value":0.9,"run_id":"eval-run","model_id":%q}]}}}`,
-				modelID, modelID)))
+				modelID, modelID)
 		case path == "runs/get":
 			_, _ = w.Write([]byte(`{"run":{"info":{"run_id":"eval-run","experiment_id":"1"},"data":{}}}`))
 		default:
