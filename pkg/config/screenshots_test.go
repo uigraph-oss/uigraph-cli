@@ -17,7 +17,6 @@ func validScreenshotsTestConfig(t *testing.T) (*Config, string) {
 
 	cfg := &Config{
 		Version: 1,
-		Project: Project{Name: "test-project"},
 		Service: Service{
 			Name:        "payments",
 			Category:    "backend",
@@ -104,7 +103,7 @@ func TestConfigLoad_ScreenshotsFromTestCasesFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfgPath := filepath.Join(dir, ".uigraph.yaml")
-	cfgYAML := "version: 1\nproject:\n  name: p\ntestPacks:\n  - name: smoke\n    type: smoke\n    testCasesPath: " + casesPath + "\n"
+	cfgYAML := "version: 1\ntestPacks:\n  - name: smoke\n    type: smoke\n    testCasesPath: " + casesPath + "\n"
 	if err := os.WriteFile(cfgPath, []byte(cfgYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}

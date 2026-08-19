@@ -1,9 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -20,7 +22,6 @@ var validScreenshotExt = map[string]bool{
 
 type Config struct {
 	Version              int              `yaml:"version"`
-	Project              Project          `yaml:"project"`
 	Service              Service          `yaml:"service"`
 	APIs                 []APIRef         `yaml:"apis"`
 	Dependencies         []DependencyRef  `yaml:"dependencies,omitempty"`
@@ -165,11 +166,6 @@ type ComponentModalFieldRef struct {
 	Data             []interface{} `yaml:"data,omitempty"`
 }
 
-type Project struct {
-	Name        string `yaml:"name" json:"name"`
-	Environment string `yaml:"environment,omitempty" json:"environment,omitempty"`
-}
-
 type Service struct {
 	Name         string       `yaml:"name" json:"name"`
 	Category     string       `yaml:"category" json:"category"`
@@ -309,41 +305,98 @@ type QueryRef struct {
 	Tags        []string `yaml:"tags,omitempty"`
 }
 
-func Load(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
+// unmarshalErr matches the go-yaml phrasing for a value whose YAML type does
+// not fit the field it is assigned to, so it can be restated in plain words.
+var unmarshalErr = regexp.MustCompile("cannot unmarshal (!![a-z]+)(?: `([^`]*)`)? into ([^\\s]+)")
 
+var yamlKindNames = map[string]string{
+	"!!str":   "text",
+	"!!int":   "a whole number",
+	"!!float": "a number",
+	"!!bool":  "true or false",
+	"!!seq":   "a list",
+	"!!map":   "an object",
+	"!!null":  "an empty value",
+}
+
+func fieldTypeName(goType string) string {
+	if strings.HasPrefix(goType, "[]") {
+		return "a list"
+	}
+	switch goType {
+	case "int", "int64":
+		return "a whole number"
+	case "float64":
+		return "a number"
+	case "string":
+		return "text"
+	case "bool":
+		return "true or false"
+	}
+	return "an object"
+}
+
+// describeYAMLError restates a go-yaml failure as a reader-facing message. Type
+// errors carry one entry per bad value, so all of them are reported at once.
+func describeYAMLError(path string, err error) error {
+	var typeErr *yaml.TypeError
+	if errors.As(err, &typeErr) {
+		messages := make([]string, len(typeErr.Errors))
+		for i, message := range typeErr.Errors {
+			match := unmarshalErr.FindStringSubmatch(message)
+			if match == nil {
+				messages[i] = message
+				continue
+			}
+			restated := fmt.Sprintf("expected %s, got %s", fieldTypeName(match[3]), yamlKindNames[match[1]])
+			if match[2] != "" {
+				restated += fmt.Sprintf(" %q", match[2])
+			}
+			messages[i] = strings.Replace(message, match[0], restated, 1)
+		}
+		return fmt.Errorf("%s has invalid values:\n  • %s", path, strings.Join(messages, "\n  • "))
+	}
+	return fmt.Errorf("%s is not valid YAML: %s", path, strings.TrimPrefix(err.Error(), "yaml: "))
+}
+
+func readYAML(path string, kind string, out interface{}) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("%s not found: %s", kind, path)
+	}
+	if errors.Is(err, os.ErrPermission) {
+		return fmt.Errorf("%s is not readable: %s", kind, path)
+	}
+	if err != nil {
+		return fmt.Errorf("could not read %s %s: %v", kind, path, err)
+	}
+	if err := yaml.Unmarshal(data, out); err != nil {
+		return describeYAMLError(path, err)
+	}
+	return nil
+}
+
+func Load(path string) (*Config, error) {
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	if err := readYAML(path, "config file", &cfg); err != nil {
+		return nil, err
 	}
 
 	for i := range cfg.TestPacks {
 		if cfg.TestPacks[i].TestCasesPath == "" {
 			continue
 		}
-		p := cfg.TestPacks[i].TestCasesPath
-		b, err := os.ReadFile(p)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read testCases file %q: %w", p, err)
-		}
 		var f testCasesFile
-		if err := yaml.Unmarshal(b, &f); err != nil {
-			return nil, fmt.Errorf("failed to parse testCases file %q: %w", p, err)
+		if err := readYAML(cfg.TestPacks[i].TestCasesPath, fmt.Sprintf("testPacks[%d].testCasesPath file", i), &f); err != nil {
+			return nil, err
 		}
 		cfg.TestPacks[i].TestCases = append(cfg.TestPacks[i].TestCases, f.TestCases...)
 	}
 
-	for _, p := range cfg.QueryFiles {
-		b, err := os.ReadFile(p)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read queries file %q: %w", p, err)
-		}
+	for i, p := range cfg.QueryFiles {
 		var f queriesFile
-		if err := yaml.Unmarshal(b, &f); err != nil {
-			return nil, fmt.Errorf("failed to parse queries file %q: %w", p, err)
+		if err := readYAML(p, fmt.Sprintf("queryFiles[%d] file", i), &f); err != nil {
+			return nil, err
 		}
 		cfg.Queries = append(cfg.Queries, f.Queries...)
 	}
@@ -351,83 +404,89 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) Validate() error {
-	if c.Version != 1 {
-		return fmt.Errorf("unsupported config version: %d (expected 1)", c.Version)
-	}
+// ValidationErrors reports every problem found in one pass, so a single run
+// tells the user everything they have to fix rather than one item at a time.
+type ValidationErrors []string
 
-	if c.Project.Name == "" {
-		return fmt.Errorf("project.name is required")
+func (e ValidationErrors) Error() string {
+	if len(e) == 1 {
+		return e[0]
+	}
+	return fmt.Sprintf("%d problems found:\n  • %s", len(e), strings.Join(e, "\n  • "))
+}
+
+func (c *Config) Validate() error {
+	var problems ValidationErrors
+
+	if c.Version != 1 {
+		problems = append(problems, fmt.Sprintf("unsupported config version: %d (expected 1)", c.Version))
 	}
 
 	if c.Service.Name != "" {
 		if c.Service.Category == "" {
-			return fmt.Errorf("service.category is required")
+			problems = append(problems, "service.category is required")
 		}
 		if c.Service.Description == "" {
-			return fmt.Errorf("service.description is required")
+			problems = append(problems, "service.description is required")
 		}
 
-		if c.Service.Repository.Provider == "" {
-			return fmt.Errorf("service.repository.provider is required")
-		}
 		validProviders := map[string]bool{"github": true, "gitlab": true, "bitbucket": true}
-		if !validProviders[c.Service.Repository.Provider] {
-			return fmt.Errorf("service.repository.provider must be one of: github, gitlab, bitbucket")
+		if c.Service.Repository.Provider == "" {
+			problems = append(problems, "service.repository.provider is required")
+		} else if !validProviders[c.Service.Repository.Provider] {
+			problems = append(problems, "service.repository.provider must be one of: github, gitlab, bitbucket")
 		}
 		if c.Service.Repository.URL == "" {
-			return fmt.Errorf("service.repository.url is required")
+			problems = append(problems, "service.repository.url is required")
 		}
 
 		if c.Service.Ownership.Team == "" {
-			return fmt.Errorf("service.ownership.team is required")
+			problems = append(problems, "service.ownership.team is required")
 		}
 	} else {
 		if len(c.APIs) > 0 {
-			return fmt.Errorf("service is required to sync apis; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync apis; configs without a service may only sync maps and frames")
 		}
 		if len(c.Databases) > 0 {
-			return fmt.Errorf("service is required to sync databases; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync databases; configs without a service may only sync maps and frames")
 		}
 		if len(c.Queries) > 0 {
-			return fmt.Errorf("service is required to sync queries; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync queries; configs without a service may only sync maps and frames")
 		}
 		if len(c.ArchitectureDiagrams) > 0 {
-			return fmt.Errorf("service is required to sync architectureDiagrams; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync architectureDiagrams; configs without a service may only sync maps and frames")
 		}
 		if len(c.TestPacks) > 0 {
-			return fmt.Errorf("service is required to sync testPacks; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync testPacks; configs without a service may only sync maps and frames")
 		}
 		if len(c.Docs) > 0 {
-			return fmt.Errorf("service is required to sync docs; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync docs; configs without a service may only sync maps and frames")
 		}
 		if len(c.Dependencies) > 0 {
-			return fmt.Errorf("service is required to sync dependencies; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync dependencies; configs without a service may only sync maps and frames")
 		}
 		if c.CostTags != nil {
-			return fmt.Errorf("service is required to sync costTags; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync costTags; configs without a service may only sync maps and frames")
 		}
 		if c.Timeline != nil {
-			return fmt.Errorf("service is required to sync timeline; configs without a service may only sync maps and frames")
+			problems = append(problems, "service is required to sync timeline; configs without a service may only sync maps and frames")
 		}
 	}
 
+	validAPITypes := map[string]bool{"openapi": true, "graphql": true, "grpc": true}
 	for i, api := range c.APIs {
 		if api.Name == "" {
-			return fmt.Errorf("apis[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("apis[%d].name is required", i))
 		}
 		if api.Type == "" {
-			return fmt.Errorf("apis[%d].type is required", i)
-		}
-		validTypes := map[string]bool{"openapi": true, "graphql": true, "grpc": true}
-		if !validTypes[api.Type] {
-			return fmt.Errorf("apis[%d].type must be one of: openapi, graphql, grpc", i)
+			problems = append(problems, fmt.Sprintf("apis[%d].type is required", i))
+		} else if !validAPITypes[api.Type] {
+			problems = append(problems, fmt.Sprintf("apis[%d].type must be one of: openapi, graphql, grpc", i))
 		}
 		if api.Path == "" {
-			return fmt.Errorf("apis[%d].path is required", i)
-		}
-		if _, err := os.Stat(api.Path); os.IsNotExist(err) {
-			return fmt.Errorf("apis[%d].path file does not exist: %s", i, api.Path)
+			problems = append(problems, fmt.Sprintf("apis[%d].path is required", i))
+		} else if _, err := os.Stat(api.Path); os.IsNotExist(err) {
+			problems = append(problems, fmt.Sprintf("apis[%d].path file does not exist: %s", i, api.Path))
 		}
 	}
 
@@ -437,58 +496,55 @@ func (c *Config) Validate() error {
 	dependencyNames := map[string]bool{}
 	for i, dependency := range c.Dependencies {
 		if dependency.Name == "" {
-			return fmt.Errorf("dependencies[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("dependencies[%d].name is required", i))
+		} else if dependencyNames[dependency.Name] {
+			problems = append(problems, fmt.Sprintf("dependencies[%d].name must be unique", i))
+		} else {
+			dependencyNames[dependency.Name] = true
 		}
-		if dependency.Service == "" {
-			return fmt.Errorf("dependencies[%d].service is required", i)
+		switch dependency.Service {
+		case "":
+			problems = append(problems, fmt.Sprintf("dependencies[%d].service is required", i))
+		case c.Service.Name:
+			problems = append(problems, fmt.Sprintf("dependencies[%d].service must not reference the current service", i))
 		}
-		if dependency.Service == c.Service.Name {
-			return fmt.Errorf("dependencies[%d].service must not reference the current service", i)
-		}
-		if dependencyNames[dependency.Name] {
-			return fmt.Errorf("dependencies[%d].name must be unique", i)
-		}
-		dependencyNames[dependency.Name] = true
 		if dependency.Direction == "" {
-			return fmt.Errorf("dependencies[%d].direction is required", i)
-		}
-		if !validDirections[dependency.Direction] {
-			return fmt.Errorf("dependencies[%d].direction must be one of: upstream, downstream", i)
+			problems = append(problems, fmt.Sprintf("dependencies[%d].direction is required", i))
+		} else if !validDirections[dependency.Direction] {
+			problems = append(problems, fmt.Sprintf("dependencies[%d].direction must be one of: upstream, downstream", i))
 		}
 		if dependency.Type != "" && !validDependencyTypes[dependency.Type] {
-			return fmt.Errorf("dependencies[%d].type must be one of: http, graphql, grpc, database", i)
+			problems = append(problems, fmt.Sprintf("dependencies[%d].type must be one of: http, graphql, grpc, database", i))
 		}
 		if dependency.Criticality == "" {
-			return fmt.Errorf("dependencies[%d].criticality is required", i)
-		}
-		if !validCriticalities[dependency.Criticality] {
-			return fmt.Errorf("dependencies[%d].criticality must be one of: hard, soft", i)
+			problems = append(problems, fmt.Sprintf("dependencies[%d].criticality is required", i))
+		} else if !validCriticalities[dependency.Criticality] {
+			problems = append(problems, fmt.Sprintf("dependencies[%d].criticality must be one of: hard, soft", i))
 		}
 		endpointNames := map[string]bool{}
 		for j, endpointName := range dependency.APIEndpointNames {
 			if endpointName == "" {
-				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] is required", i, j)
+				problems = append(problems, fmt.Sprintf("dependencies[%d].apiEndpointNames[%d] is required", i, j))
+			} else if endpointNames[endpointName] {
+				problems = append(problems, fmt.Sprintf("dependencies[%d].apiEndpointNames[%d] must be unique", i, j))
+			} else {
+				endpointNames[endpointName] = true
 			}
-			if endpointNames[endpointName] {
-				return fmt.Errorf("dependencies[%d].apiEndpointNames[%d] must be unique", i, j)
-			}
-			endpointNames[endpointName] = true
 		}
 	}
 
 	for i, ad := range c.ArchitectureDiagrams {
 		if ad.Name == "" {
-			return fmt.Errorf("architectureDiagrams[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].name is required", i))
 		}
 		if ad.Path == "" {
-			return fmt.Errorf("architectureDiagrams[%d].path is required", i)
-		}
-		if _, err := os.Stat(ad.Path); os.IsNotExist(err) {
-			return fmt.Errorf("architectureDiagrams[%d].path file does not exist: %s", i, ad.Path)
+			problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].path is required", i))
+		} else if _, err := os.Stat(ad.Path); os.IsNotExist(err) {
+			problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].path file does not exist: %s", i, ad.Path))
 		}
 		if ad.ContextPath != "" {
 			if _, err := os.Stat(ad.ContextPath); os.IsNotExist(err) {
-				return fmt.Errorf("architectureDiagrams[%d].contextPath file does not exist: %s", i, ad.ContextPath)
+				problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].contextPath file does not exist: %s", i, ad.ContextPath))
 			}
 		}
 	}
@@ -497,40 +553,42 @@ func (c *Config) Validate() error {
 	validTestCaseTypes := map[string]bool{"api": true, "manual": true}
 	for i, pack := range c.TestPacks {
 		if pack.Name == "" {
-			return fmt.Errorf("testPacks[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("testPacks[%d].name is required", i))
 		}
 		if pack.Type == "" {
-			return fmt.Errorf("testPacks[%d].type is required", i)
-		}
-		if !validTestPackTypes[pack.Type] {
-			return fmt.Errorf("testPacks[%d].type must be one of: smoke, regression, manual", i)
+			problems = append(problems, fmt.Sprintf("testPacks[%d].type is required", i))
+		} else if !validTestPackTypes[pack.Type] {
+			problems = append(problems, fmt.Sprintf("testPacks[%d].type must be one of: smoke, regression, manual", i))
 		}
 		for j, tc := range pack.TestCases {
 			if tc.Type == "" {
-				return fmt.Errorf("testPacks[%d].testCases[%d].type is required", i, j)
-			}
-			if !validTestCaseTypes[tc.Type] {
-				return fmt.Errorf("testPacks[%d].testCases[%d].type must be one of: api, manual", i, j)
+				problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].type is required", i, j))
+			} else if !validTestCaseTypes[tc.Type] {
+				problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].type must be one of: api, manual", i, j))
 			}
 			if tc.Title == "" {
-				return fmt.Errorf("testPacks[%d].testCases[%d].title is required", i, j)
+				problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].title is required", i, j))
 			}
 			for k, shot := range tc.Screenshots {
 				if shot == "" {
-					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] is required", i, j, k)
+					problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].screenshots[%d] is required", i, j, k))
+					continue
 				}
 				info, err := os.Stat(shot)
 				if os.IsNotExist(err) {
-					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] file does not exist: %s", i, j, k, shot)
+					problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].screenshots[%d] file does not exist: %s", i, j, k, shot))
+					continue
 				}
 				if err != nil {
-					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d]: %w", i, j, k, err)
+					problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].screenshots[%d] is not readable: %s", i, j, k, shot))
+					continue
 				}
 				if info.IsDir() {
-					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] must be a file, not a directory: %s", i, j, k, shot)
+					problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].screenshots[%d] must be a file, not a directory: %s", i, j, k, shot))
+					continue
 				}
 				if !validScreenshotExt[strings.ToLower(filepath.Ext(shot))] {
-					return fmt.Errorf("testPacks[%d].testCases[%d].screenshots[%d] must be an image (.png, .jpg, .jpeg, .gif, .webp, .svg): %s", i, j, k, shot)
+					problems = append(problems, fmt.Sprintf("testPacks[%d].testCases[%d].screenshots[%d] must be an image (.png, .jpg, .jpeg, .gif, .webp, .svg): %s", i, j, k, shot))
 				}
 			}
 		}
@@ -539,14 +597,17 @@ func (c *Config) Validate() error {
 	tagPairs := map[string]bool{}
 	for i, tag := range c.CostTags {
 		if tag.Key == "" {
-			return fmt.Errorf("costTags[%d].key is required", i)
+			problems = append(problems, fmt.Sprintf("costTags[%d].key is required", i))
 		}
 		if tag.Value == "" {
-			return fmt.Errorf("costTags[%d].value is required", i)
+			problems = append(problems, fmt.Sprintf("costTags[%d].value is required", i))
+		}
+		if tag.Key == "" || tag.Value == "" {
+			continue
 		}
 		pair := tag.Key + "=" + tag.Value
 		if tagPairs[pair] {
-			return fmt.Errorf("costTags[%d]: duplicate key/value pair %q", i, pair)
+			problems = append(problems, fmt.Sprintf("costTags[%d]: duplicate key/value pair %q", i, pair))
 		}
 		tagPairs[pair] = true
 	}
@@ -554,17 +615,17 @@ func (c *Config) Validate() error {
 	if c.Timeline != nil {
 		for i, p := range c.Timeline.Decisions.Paths {
 			if p == "" {
-				return fmt.Errorf("timeline.decisions.paths[%d] is required", i)
+				problems = append(problems, fmt.Sprintf("timeline.decisions.paths[%d] is required", i))
 			}
 		}
 		for i, p := range c.Timeline.Incidents.Paths {
 			if p == "" {
-				return fmt.Errorf("timeline.incidents.paths[%d] is required", i)
+				problems = append(problems, fmt.Sprintf("timeline.incidents.paths[%d] is required", i))
 			}
 		}
 		if c.Timeline.Releases.ChangelogPath != "" {
 			if _, err := os.Stat(c.Timeline.Releases.ChangelogPath); os.IsNotExist(err) {
-				return fmt.Errorf("timeline.releases.changelogPath file does not exist: %s", c.Timeline.Releases.ChangelogPath)
+				problems = append(problems, fmt.Sprintf("timeline.releases.changelogPath file does not exist: %s", c.Timeline.Releases.ChangelogPath))
 			}
 		}
 	}
@@ -572,16 +633,15 @@ func (c *Config) Validate() error {
 	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "txt": true, "image": true, "video": true, "audio": true, "other": true}
 	for i, doc := range c.Docs {
 		if doc.Name == "" {
-			return fmt.Errorf("docs[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("docs[%d].name is required", i))
 		}
 		if doc.Path == "" {
-			return fmt.Errorf("docs[%d].path is required", i)
-		}
-		if _, err := os.Stat(doc.Path); os.IsNotExist(err) {
-			return fmt.Errorf("docs[%d].path file does not exist: %s", i, doc.Path)
+			problems = append(problems, fmt.Sprintf("docs[%d].path is required", i))
+		} else if _, err := os.Stat(doc.Path); os.IsNotExist(err) {
+			problems = append(problems, fmt.Sprintf("docs[%d].path file does not exist: %s", i, doc.Path))
 		}
 		if doc.FileType != "" && !validFileTypes[doc.FileType] {
-			return fmt.Errorf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, other", i)
+			problems = append(problems, fmt.Sprintf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, other", i))
 		}
 	}
 
@@ -593,39 +653,41 @@ func (c *Config) Validate() error {
 	}
 	for i, m := range c.Maps {
 		if m.Name == "" {
-			return fmt.Errorf("maps[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("maps[%d].name is required", i))
 		}
 		for j, frame := range m.Frames {
 			if frame.Name == "" {
-				return fmt.Errorf("maps[%d].frames[%d].name is required", i, j)
+				problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].name is required", i, j))
 			}
 			if frame.ImagePath != "" {
 				if _, err := os.Stat(frame.ImagePath); os.IsNotExist(err) {
-					return fmt.Errorf("maps[%d].frames[%d].imagePath file does not exist: %s", i, j, frame.ImagePath)
+					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].imagePath file does not exist: %s", i, j, frame.ImagePath))
 				}
 			}
 			for k, fp := range frame.FocalPoints {
 				if fp.Name == "" {
-					return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].name is required", i, j, k)
+					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].name is required", i, j, k))
 				}
 				for l, comp := range fp.Components {
 					if comp.ComponentID == "" {
-						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d].componentId is required", i, j, k, l)
+						problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].components[%d].componentId is required", i, j, k, l))
+						continue
 					}
 					if !validComponentIDs[comp.ComponentID] {
-						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d].componentId '%s' is not valid", i, j, k, l, comp.ComponentID)
+						problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].components[%d].componentId '%s' is not valid", i, j, k, l, comp.ComponentID))
+						continue
 					}
 					if comp.ComponentLinkID == "" && comp.ServiceName == "" && len(comp.ModalFields) == 0 {
-						return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d]: either componentLinkId, serviceName, or modalFields is required", i, j, k, l)
+						problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].components[%d]: either componentLinkId, serviceName, or modalFields is required", i, j, k, l))
 					}
 					if comp.ComponentID == "component_backend-flow-diagram" && comp.ComponentLinkID == "" {
 						if comp.ServiceName == "" || comp.ArchitectureDiagramName == "" {
-							return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d]: component_backend-flow-diagram requires componentLinkId, or both serviceName and architectureDiagramName", i, j, k, l)
+							problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].components[%d]: component_backend-flow-diagram requires componentLinkId, or both serviceName and architectureDiagramName", i, j, k, l))
 						}
 					}
 					if comp.ComponentID == "component_api-contract" && comp.ComponentLinkID == "" {
 						if comp.ServiceName == "" || comp.APIGroupName == "" || comp.OperationID == "" {
-							return fmt.Errorf("maps[%d].frames[%d].focalPoints[%d].components[%d]: component_api-contract requires componentLinkId, or serviceName, apiGroupName, and operationId", i, j, k, l)
+							problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].components[%d]: component_api-contract requires componentLinkId, or serviceName, apiGroupName, and operationId", i, j, k, l))
 						}
 					}
 				}
@@ -636,19 +698,17 @@ func (c *Config) Validate() error {
 	validDialects := map[string]bool{"postgres": true, "mysql": true, "sqlite": true, "dynamodb": true, "mongodb": true, "other": true}
 	for i, db := range c.Databases {
 		if db.Name == "" {
-			return fmt.Errorf("databases[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("databases[%d].name is required", i))
 		}
 		if db.Dialect == "" {
-			return fmt.Errorf("databases[%d].dialect is required", i)
-		}
-		if !validDialects[db.Dialect] {
-			return fmt.Errorf("databases[%d].dialect must be one of: postgres, mysql, sqlite, dynamodb, mongodb, other", i)
+			problems = append(problems, fmt.Sprintf("databases[%d].dialect is required", i))
+		} else if !validDialects[db.Dialect] {
+			problems = append(problems, fmt.Sprintf("databases[%d].dialect must be one of: postgres, mysql, sqlite, dynamodb, mongodb, other", i))
 		}
 		if db.SchemaPath == "" {
-			return fmt.Errorf("databases[%d].schemaPath is required", i)
-		}
-		if _, err := os.Stat(db.SchemaPath); os.IsNotExist(err) {
-			return fmt.Errorf("databases[%d].schemaPath file does not exist: %s", i, db.SchemaPath)
+			problems = append(problems, fmt.Sprintf("databases[%d].schemaPath is required", i))
+		} else if _, err := os.Stat(db.SchemaPath); os.IsNotExist(err) {
+			problems = append(problems, fmt.Sprintf("databases[%d].schemaPath file does not exist: %s", i, db.SchemaPath))
 		}
 	}
 
@@ -658,78 +718,79 @@ func (c *Config) Validate() error {
 	}
 	for i, q := range c.Queries {
 		if q.Name == "" {
-			return fmt.Errorf("queries[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("queries[%d].name is required", i))
 		}
 		if q.Database == "" {
-			return fmt.Errorf("queries[%d].database is required", i)
-		}
-		if !dbNames[q.Database] {
-			return fmt.Errorf("queries[%d].database %q does not match any databases[].name", i, q.Database)
+			problems = append(problems, fmt.Sprintf("queries[%d].database is required", i))
+		} else if !dbNames[q.Database] {
+			problems = append(problems, fmt.Sprintf("queries[%d].database %q does not match any databases[].name", i, q.Database))
 		}
 		hasPath := q.Path != ""
 		hasInline := q.QueryText != ""
 		if hasPath == hasInline {
-			return fmt.Errorf("queries[%d]: exactly one of path or queryText is required", i)
-		}
-		if hasPath {
+			problems = append(problems, fmt.Sprintf("queries[%d]: exactly one of path or queryText is required", i))
+		} else if hasPath {
 			if _, err := os.Stat(q.Path); os.IsNotExist(err) {
-				return fmt.Errorf("queries[%d].path file does not exist: %s", i, q.Path)
+				problems = append(problems, fmt.Sprintf("queries[%d].path file does not exist: %s", i, q.Path))
 			}
 		}
 	}
 
 	for i, p := range c.ML {
 		if p.Name == "" {
-			return fmt.Errorf("ml[%d].name is required", i)
+			problems = append(problems, fmt.Sprintf("ml[%d].name is required", i))
 		}
 		if p.Type != "model" && p.Type != "training" {
-			return fmt.Errorf("ml[%d].type must be one of: model, training", i)
+			problems = append(problems, fmt.Sprintf("ml[%d].type must be one of: model, training", i))
 		}
 		if p.Source.Type != "mlflow" {
-			return fmt.Errorf("ml[%d].source.type must be: mlflow", i)
+			problems = append(problems, fmt.Sprintf("ml[%d].source.type must be: mlflow", i))
 		}
 		if p.Source.URL != "" && p.Source.URLEnv != "" {
-			return fmt.Errorf("ml[%d].source: specify either url or urlEnv, not both", i)
+			problems = append(problems, fmt.Sprintf("ml[%d].source: specify either url or urlEnv, not both", i))
 		}
 		if p.Source.URL == "" && p.Source.URLEnv == "" {
-			return fmt.Errorf("ml[%d].source: either url or urlEnv is required", i)
+			problems = append(problems, fmt.Sprintf("ml[%d].source: either url or urlEnv is required", i))
 		}
 		if p.Source.URLEnv != "" && os.Getenv(p.Source.URLEnv) == "" {
-			return fmt.Errorf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv)
+			problems = append(problems, fmt.Sprintf("ml[%d].source.urlEnv: environment variable %s is not set or empty", i, p.Source.URLEnv))
 		}
 		if p.Source.TokenEnv != "" && os.Getenv(p.Source.TokenEnv) == "" {
-			return fmt.Errorf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv)
+			problems = append(problems, fmt.Sprintf("ml[%d].source.tokenEnv: environment variable %s is not set or empty", i, p.Source.TokenEnv))
 		}
 		if p.Type == "model" {
 			if len(p.Models) == 0 {
-				return fmt.Errorf("ml[%d]: a model project must declare models", i)
+				problems = append(problems, fmt.Sprintf("ml[%d]: a model project must declare models", i))
 			}
 			if len(p.Experiments) > 0 {
-				return fmt.Errorf("ml[%d]: a model project must not declare experiments", i)
+				problems = append(problems, fmt.Sprintf("ml[%d]: a model project must not declare experiments", i))
 			}
 			for j, m := range p.Models {
 				if m.Name == "" {
-					return fmt.Errorf("ml[%d].models[%d].name is required", i, j)
+					problems = append(problems, fmt.Sprintf("ml[%d].models[%d].name is required", i, j))
 				}
 				if m.ProblemType != "" && !validProblemType[m.ProblemType] {
-					return fmt.Errorf("ml[%d].models[%d].problemType must be one of: classification, regression, ranking, generation, embedding, other", i, j)
+					problems = append(problems, fmt.Sprintf("ml[%d].models[%d].problemType must be one of: classification, regression, ranking, generation, embedding, other", i, j))
 				}
 			}
 		}
 		if p.Type == "training" {
 			if len(p.Experiments) == 0 {
-				return fmt.Errorf("ml[%d]: a training project must declare experiments", i)
+				problems = append(problems, fmt.Sprintf("ml[%d]: a training project must declare experiments", i))
 			}
 			if len(p.Models) > 0 {
-				return fmt.Errorf("ml[%d]: a training project must not declare models", i)
+				problems = append(problems, fmt.Sprintf("ml[%d]: a training project must not declare models", i))
 			}
 			for j, e := range p.Experiments {
 				if e.Name == "" {
-					return fmt.Errorf("ml[%d].experiments[%d].name is required", i, j)
+					problems = append(problems, fmt.Sprintf("ml[%d].experiments[%d].name is required", i, j))
 				}
 			}
 		}
 	}
 
+	if len(problems) > 0 {
+		return problems
+	}
 	return nil
 }

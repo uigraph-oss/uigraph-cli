@@ -220,19 +220,19 @@ Then create a pull request on GitHub.
 2. Run `uigraph sync`
 
 **Expected:** Service syncs successfully
-**Actual:** Error: "failed to parse YAML"
+**Actual:** Error: ".uigraph.yaml is not valid YAML"
 
 **Config:**
 ```yaml
 version: 1
-project:
+service:
   name: test
 ...
 ```
 
 **Error:**
 ```
-Error: failed to parse YAML: line 5: ...
+Config error: .uigraph.yaml is not valid YAML: line 5: ...
 ```
 ```
 

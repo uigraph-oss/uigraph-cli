@@ -34,7 +34,6 @@ type Source struct {
 }
 
 type ServiceSyncRequest struct {
-	Project config.Project `json:"project"`
 	Service config.Service `json:"service"`
 	Git     git.Metadata   `json:"git"`
 	Source  Source         `json:"source"`

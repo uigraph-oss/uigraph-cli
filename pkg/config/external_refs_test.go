@@ -28,8 +28,6 @@ func TestLoad_QueryFilesMerge(t *testing.T) {
     queryText: "select 2"
 `)
 	mainPath := writeFile(t, dir, ".uigraph.yaml", `version: 1
-project:
-  name: test-project
 service:
   name: payments
   category: backend
@@ -74,8 +72,6 @@ func TestLoad_TestCasesPathMerge(t *testing.T) {
     order: 3
 `)
 	mainPath := writeFile(t, dir, ".uigraph.yaml", `version: 1
-project:
-  name: test-project
 service:
   name: payments
   category: backend
@@ -110,13 +106,11 @@ testPacks:
 func TestLoad_QueryFilesMissing(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := writeFile(t, dir, ".uigraph.yaml", `version: 1
-project:
-  name: test-project
 queryFiles:
   - /nonexistent/queries.yaml
 `)
 	_, err := Load(mainPath)
-	if err == nil || !strings.Contains(err.Error(), "failed to read queries file") {
+	if err == nil || !strings.Contains(err.Error(), "queryFiles[0] file not found") {
 		t.Fatalf("Load() error = %v, want read-queries-file error", err)
 	}
 }
@@ -124,15 +118,13 @@ queryFiles:
 func TestLoad_TestCasesPathMissing(t *testing.T) {
 	dir := t.TempDir()
 	mainPath := writeFile(t, dir, ".uigraph.yaml", `version: 1
-project:
-  name: test-project
 testPacks:
   - name: Smoke
     type: smoke
     testCasesPath: /nonexistent/cases.yaml
 `)
 	_, err := Load(mainPath)
-	if err == nil || !strings.Contains(err.Error(), "failed to read testCases file") {
+	if err == nil || !strings.Contains(err.Error(), "testPacks[0].testCasesPath file not found") {
 		t.Fatalf("Load() error = %v, want read-testCases-file error", err)
 	}
 }
@@ -146,8 +138,6 @@ func TestLoad_QueryFilesValidationOnMerged(t *testing.T) {
     queryText: "select 1"
 `)
 	mainPath := writeFile(t, dir, ".uigraph.yaml", `version: 1
-project:
-  name: test-project
 service:
   name: payments
   category: backend

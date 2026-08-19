@@ -125,8 +125,6 @@ Uses CircleCI contexts for secure token management.
 
 ```yaml
 version: 1
-project:
-  name: my-product
 service:
   name: My Service
   category: Backend
@@ -165,14 +163,6 @@ service:
       url: https://company.atlassian.net/browse/PROJECT
     slack:
       url: https://company.slack.com/archives/CHANNEL
-```
-
-### Pattern 4: Environment-Specific Config
-
-```yaml
-project:
-  name: my-product
-  environment: staging  # or production, development
 ```
 
 ## Testing Locally

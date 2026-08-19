@@ -6,7 +6,6 @@ func TestConfigValidateML(t *testing.T) {
 	modelProject := func(models []MLModelRef, experiments []MLExperimentRef) Config {
 		return Config{
 			Version: 1,
-			Project: Project{Name: "test-project"},
 			ML: []MLProjectRef{
 				{
 					Name:        "Facebook",
@@ -22,7 +21,6 @@ func TestConfigValidateML(t *testing.T) {
 	envProject := func(source MLSourceRef) Config {
 		return Config{
 			Version: 1,
-			Project: Project{Name: "test-project"},
 			ML:      []MLProjectRef{{Name: "P", Type: "model", Source: source, Models: []MLModelRef{{Name: "m"}}}},
 		}
 	}
@@ -43,7 +41,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "valid training project",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML: []MLProjectRef{
 					{
 						Name:        "Facebook Training",
@@ -59,7 +56,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "missing name",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML:      []MLProjectRef{{Type: "model", Source: MLSourceRef{Type: "mlflow", URL: "http://x"}, Models: []MLModelRef{{Name: "m"}}}},
 			},
 			wantErr: true,
@@ -69,7 +65,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "invalid type",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML:      []MLProjectRef{{Name: "P", Type: "dataset", Source: MLSourceRef{Type: "mlflow", URL: "http://x"}}},
 			},
 			wantErr: true,
@@ -79,7 +74,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "invalid source type",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML:      []MLProjectRef{{Name: "P", Type: "model", Source: MLSourceRef{Type: "wandb", URL: "http://x"}, Models: []MLModelRef{{Name: "m"}}}},
 			},
 			wantErr: true,
@@ -140,7 +134,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "training project without experiments",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML:      []MLProjectRef{{Name: "T", Type: "training", Source: MLSourceRef{Type: "mlflow", URL: "http://x"}}},
 			},
 			wantErr: true,
@@ -150,7 +143,6 @@ func TestConfigValidateML(t *testing.T) {
 			name: "training project with models",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				ML:      []MLProjectRef{{Name: "T", Type: "training", Source: MLSourceRef{Type: "mlflow", URL: "http://x"}, Experiments: []MLExperimentRef{{Name: "e"}}, Models: []MLModelRef{{Name: "m"}}}},
 			},
 			wantErr: true,

@@ -10,7 +10,6 @@ import (
 func validCostTagsTestConfig() *Config {
 	return &Config{
 		Version: 1,
-		Project: Project{Name: "test-project"},
 		Service: Service{
 			Name:        "payments",
 			Category:    "backend",
@@ -82,7 +81,7 @@ func TestConfigValidate_CostTagsRequireService(t *testing.T) {
 func TestConfigLoad_CostTagsAbsentIsNil(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".uigraph.yaml")
-	if err := os.WriteFile(path, []byte("version: 1\nproject:\n  name: p\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("version: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)
@@ -97,7 +96,7 @@ func TestConfigLoad_CostTagsAbsentIsNil(t *testing.T) {
 func TestConfigLoad_CostTagsEmptyListIsNotNil(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, ".uigraph.yaml")
-	if err := os.WriteFile(path, []byte("version: 1\nproject:\n  name: p\ncostTags: []\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("version: 1\ncostTags: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(path)

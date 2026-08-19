@@ -15,8 +15,6 @@ func TestLoad(t *testing.T) {
 		{
 			name: "valid config",
 			content: `version: 1
-project:
-  name: test-project
 service:
   name: Test Service
   category: Backend
@@ -74,7 +72,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "valid config",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Service: Service{
 					Name:        "Test Service",
 					Category:    "Backend",
@@ -92,25 +89,14 @@ func TestConfigValidate(t *testing.T) {
 			name: "invalid version",
 			config: Config{
 				Version: 2,
-				Project: Project{Name: "test-project"},
 			},
 			wantErr: true,
 			errMsg:  "unsupported config version",
 		},
 		{
-			name: "missing project name",
-			config: Config{
-				Version: 1,
-				Project: Project{},
-			},
-			wantErr: true,
-			errMsg:  "project.name is required",
-		},
-		{
 			name: "no service, maps only",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Maps: []MapRef{
 					{
 						Name: "Checkout",
@@ -131,7 +117,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "no service, apis present",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				APIs:    []APIRef{{Name: "test-api", Type: "openapi", Path: "spec.yaml"}},
 			},
 			wantErr: true,
@@ -141,7 +126,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "no service, docs present",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Docs:    []DocRef{{Name: "readme", Path: "README.md"}},
 			},
 			wantErr: true,
@@ -151,7 +135,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "missing service category",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Service: Service{Name: "Test Service"},
 			},
 			wantErr: true,
@@ -161,7 +144,6 @@ func TestConfigValidate(t *testing.T) {
 			name: "invalid repository provider",
 			config: Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Service: Service{
 					Name:        "Test Service",
 					Category:    "Backend",
@@ -250,7 +232,6 @@ func TestConfigValidateAPIs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				Version: 1,
-				Project: Project{Name: "test-project"},
 				Service: Service{
 					Name:        "Test Service",
 					Category:    "Backend",
@@ -314,7 +295,7 @@ func TestConfigValidateDependencies(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := Config{Version: 1, Project: Project{Name: "test-project"}, Service: validService, Dependencies: tt.deps}
+			cfg := Config{Version: 1, Service: validService, Dependencies: tt.deps}
 			err := cfg.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
@@ -323,6 +304,101 @@ func TestConfigValidateDependencies(t *testing.T) {
 				t.Errorf("Validate() error message = %v, want to contain %v", err.Error(), tt.errMsg)
 			}
 		})
+	}
+}
+
+func TestConfigValidateReportsEveryProblem(t *testing.T) {
+	cfg := Config{
+		Version: 2,
+		Service: Service{Name: "Test Service"},
+		APIs:    []APIRef{{Type: "soap"}},
+	}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() = nil, want error")
+	}
+
+	want := []string{
+		"unsupported config version: 2 (expected 1)",
+		"service.category is required",
+		"service.description is required",
+		"service.repository.provider is required",
+		"service.repository.url is required",
+		"service.ownership.team is required",
+		"apis[0].name is required",
+		"apis[0].type must be one of: openapi, graphql, grpc",
+		"apis[0].path is required",
+	}
+	for _, msg := range want {
+		if !contains(err.Error(), msg) {
+			t.Errorf("Validate() error = %v, want to contain %q", err, msg)
+		}
+	}
+
+	problems, ok := err.(ValidationErrors)
+	if !ok {
+		t.Fatalf("Validate() error type = %T, want ValidationErrors", err)
+	}
+	if len(problems) != len(want) {
+		t.Errorf("Validate() reported %d problems, want %d", len(problems), len(want))
+	}
+}
+
+func TestConfigValidateSingleProblemIsUnwrapped(t *testing.T) {
+	cfg := Config{Version: 2}
+
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("Validate() = nil, want error")
+	}
+	want := "unsupported config version: 2 (expected 1)"
+	if err.Error() != want {
+		t.Errorf("Validate() error = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestLoadRestatesInvalidValues(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), ".uigraph.yaml")
+	content := `version: one
+service:
+  name: Test Service
+  labels: not-a-list
+`
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Load(tmpFile)
+	if err == nil {
+		t.Fatal("Load() = nil, want error")
+	}
+	for _, msg := range []string{
+		`line 1: expected a whole number, got text "one"`,
+		`line 4: expected a list, got text "not-a-list"`,
+	} {
+		if !contains(err.Error(), msg) {
+			t.Errorf("Load() error = %v, want to contain %q", err, msg)
+		}
+	}
+}
+
+func TestLoadReportsMissingAndMalformedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	missing := filepath.Join(tmpDir, "gone.yaml")
+
+	_, err := Load(missing)
+	if err == nil || !contains(err.Error(), "config file not found: "+missing) {
+		t.Errorf("Load() error = %v, want not-found message", err)
+	}
+
+	broken := filepath.Join(tmpDir, ".uigraph.yaml")
+	if err := os.WriteFile(broken, []byte("version: 1\nservice:\n name: a\n  bad: indent\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = Load(broken)
+	if err == nil || !contains(err.Error(), broken+" is not valid YAML: line 4:") {
+		t.Errorf("Load() error = %v, want syntax-error message", err)
 	}
 }
 

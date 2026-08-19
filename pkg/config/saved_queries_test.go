@@ -17,7 +17,6 @@ func validQueriesTestConfig(t *testing.T) *Config {
 
 	return &Config{
 		Version: 1,
-		Project: Project{Name: "test-project"},
 		Service: Service{
 			Name:        "payments",
 			Category:    "backend",

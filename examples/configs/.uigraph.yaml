@@ -1,9 +1,5 @@
 version: 1
 
-project:
-  name: uigraph-cli
-  environment: production
-
 service:
   name: UIGraph CLI
   category: Backend

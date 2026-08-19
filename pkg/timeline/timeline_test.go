@@ -21,7 +21,6 @@ func writeFile(t *testing.T, dir, name, content string) string {
 func scanConfig(dir string) *config.Config {
 	return &config.Config{
 		Version: 1,
-		Project: config.Project{Name: "p"},
 		Service: config.Service{
 			Name:       "payments",
 			Repository: config.Repository{Provider: "github", URL: "https://github.com/example/payments"},
