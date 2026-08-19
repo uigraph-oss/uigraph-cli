@@ -60,10 +60,6 @@ Example:
 ```yaml
 version: 1
 
-project:
-  name: my-product
-  environment: production
-
 service:
   name: Booking Service
   category: Backend

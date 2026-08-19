@@ -150,7 +150,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\n🚀 Syncing service: %s\n", cfg.Service.Name)
 
 		syncReq := gateway.ServiceSyncRequest{
-			Project: cfg.Project,
 			Service: cfg.Service,
 			Git:     gitMeta,
 			Source: gateway.Source{
