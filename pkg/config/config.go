@@ -502,9 +502,10 @@ func (c *Config) Validate() error {
 		} else {
 			dependencyNames[dependency.Name] = true
 		}
-		if dependency.Service == "" {
+		switch dependency.Service {
+		case "":
 			problems = append(problems, fmt.Sprintf("dependencies[%d].service is required", i))
-		} else if dependency.Service == c.Service.Name {
+		case c.Service.Name:
 			problems = append(problems, fmt.Sprintf("dependencies[%d].service must not reference the current service", i))
 		}
 		if dependency.Direction == "" {
