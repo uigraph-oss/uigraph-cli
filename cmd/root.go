@@ -8,6 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	enterpriseGatewayURL    = "https://console.uigraph.app/gateway"
+	enterpriseDevGatewayURL = "https://console.dev.uigraph.app/gateway"
+)
+
 var rootCmd = &cobra.Command{
 	Use:   "uigraph",
 	Short: "UiGraph CLI - Sync services and APIs to UiGraph Gateway",

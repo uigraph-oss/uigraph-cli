@@ -52,8 +52,12 @@ make build
 3. Run:
 
 ```bash
-uigraph sync
+uigraph sync --enterprise
 ```
+
+`--enterprise` points the CLI at the UiGraph gateway (`--enterprise=DEV` for the dev
+environment), so there is no need to set
+`UIGRAPH_GATEWAY_URL`. Self-hosted instances keep using `--api-url` or `UIGRAPH_GATEWAY_URL`.
 
 Example:
 
@@ -80,6 +84,8 @@ apis:
 uigraph sync
 uigraph sync --config ./config/.uigraph.yaml
 uigraph sync --dry-run
+uigraph sync --enterprise
+uigraph sync --enterprise=DEV --dry-run
 ```
 
 Record a release from a tag-triggered pipeline job. The version, notes and
