@@ -30,6 +30,7 @@ var releaseCmd = &cobra.Command{
 	Long: `Records a single release event at the moment a tag is created, for pipelines that cut releases as a CI/CD step.
 Run this from a tag-triggered job; it resolves the version, release notes and commit range from git and posts one timeline event.
 Requires the UIGRAPH_TOKEN environment variable.`,
+	Args: cobra.NoArgs,
 	RunE: runRelease,
 }
 
@@ -42,6 +43,9 @@ func init() {
 	releaseCmd.Flags().StringVar(&releaseTitle, "title", "", "Event title (defaults to the version)")
 	releaseCmd.Flags().StringVar(&configPath, "config", ".uigraph.yaml", "Path to config file")
 	releaseCmd.Flags().StringVar(&apiURL, "api-url", "", "Gateway API URL (defaults to UIGRAPH_GATEWAY_URL env var)")
+	releaseCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Record the release on the UiGraph gateway ("+enterpriseGatewayURL+"); pass --enterprise=DEV for "+enterpriseDevGatewayURL)
+	releaseCmd.Flags().Lookup("enterprise").NoOptDefVal = "DEFAULT"
+	releaseCmd.MarkFlagsMutuallyExclusive("api-url", "enterprise")
 	releaseCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the event without sending it to the gateway")
 }
 
@@ -54,11 +58,21 @@ func runRelease(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
+	if enterpriseEnv == "DEFAULT" {
+		apiURL = enterpriseGatewayURL
+	}
+	if enterpriseEnv == "DEV" {
+		apiURL = enterpriseDevGatewayURL
+	}
+	if enterpriseEnv != "" && apiURL == "" {
+		fmt.Fprintf(os.Stderr, "Error: --enterprise accepts no value or =DEV, got %q\n", enterpriseEnv)
+		os.Exit(1)
+	}
 	if apiURL == "" {
 		apiURL = os.Getenv("UIGRAPH_GATEWAY_URL")
 	}
 	if apiURL == "" {
-		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --api-url or UIGRAPH_GATEWAY_URL environment variable)")
+		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --enterprise, --api-url or UIGRAPH_GATEWAY_URL environment variable)")
 		os.Exit(1)
 	}
 

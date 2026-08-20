@@ -24,10 +24,11 @@ import (
 )
 
 var (
-	configPath string
-	apiURL     string
-	dryRun     bool
-	verbose    bool
+	configPath    string
+	apiURL        string
+	enterpriseEnv string
+	dryRun        bool
+	verbose       bool
 )
 
 var syncCmd = &cobra.Command{
@@ -35,12 +36,16 @@ var syncCmd = &cobra.Command{
 	Short: "Sync service and APIs to UiGraph Gateway",
 	Long: `Reads .uigraph.yaml, captures git metadata, and syncs service, API groups, architecture diagrams, test packs/test cases, and database schemas (when configured) to the gateway.
 This command is designed to run in CI/CD environments and requires UIGRAPH_TOKEN environment variable.`,
+	Args: cobra.NoArgs,
 	RunE: runSync,
 }
 
 func init() {
 	syncCmd.Flags().StringVar(&configPath, "config", ".uigraph.yaml", "Path to config file")
 	syncCmd.Flags().StringVar(&apiURL, "api-url", "", "Gateway API URL (defaults to UIGRAPH_GATEWAY_URL env var)")
+	syncCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Sync to the UiGraph gateway ("+enterpriseGatewayURL+"); pass --enterprise=DEV for "+enterpriseDevGatewayURL)
+	syncCmd.Flags().Lookup("enterprise").NoOptDefVal = "DEFAULT"
+	syncCmd.MarkFlagsMutuallyExclusive("api-url", "enterprise")
 	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print payloads without sending to gateway")
 	syncCmd.Flags().BoolVar(&verbose, "verbose", false, "Log every MLflow and gateway request with its duration")
 }
@@ -107,11 +112,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 		os.Exit(1)
 	}
 
+	if enterpriseEnv == "DEFAULT" {
+		apiURL = enterpriseGatewayURL
+	}
+	if enterpriseEnv == "DEV" {
+		apiURL = enterpriseDevGatewayURL
+	}
+	if enterpriseEnv != "" && apiURL == "" {
+		fmt.Fprintf(os.Stderr, "Error: --enterprise accepts no value or =DEV, got %q\n", enterpriseEnv)
+		os.Exit(1)
+	}
 	if apiURL == "" {
 		apiURL = os.Getenv("UIGRAPH_GATEWAY_URL")
 	}
 	if apiURL == "" {
-		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --api-url or UIGRAPH_GATEWAY_URL environment variable)")
+		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --enterprise, --api-url or UIGRAPH_GATEWAY_URL environment variable)")
 		os.Exit(1)
 	}
 
