@@ -402,6 +402,69 @@ func TestLoadReportsMissingAndMalformedFiles(t *testing.T) {
 	}
 }
 
+func TestConfigValidateArchitectureDiagrams(t *testing.T) {
+	tmpDir := t.TempDir()
+	mmdFile := filepath.Join(tmpDir, "diagram.mmd")
+	if err := os.WriteFile(mmdFile, []byte("flowchart LR\n a-->b"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	validService := Service{
+		Name:        "Test Service",
+		Category:    "Backend",
+		Description: "Test",
+		Repository:  Repository{Provider: "github", URL: "https://github.com/test/repo"},
+		Ownership:   Ownership{Team: "platform"},
+	}
+
+	tests := []struct {
+		name     string
+		diagrams []ArchDiagramRef
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name: "valid diagrams",
+			diagrams: []ArchDiagramRef{
+				{Name: "Checkout Flow", Path: mmdFile},
+				{Name: "Payment Flow", Path: mmdFile},
+			},
+			wantErr: false,
+		},
+		{
+			name: "duplicate diagram name exact match",
+			diagrams: []ArchDiagramRef{
+				{Name: "Checkout Flow", Path: mmdFile},
+				{Name: "Checkout Flow", Path: mmdFile},
+			},
+			wantErr: true,
+			errMsg:  "is a duplicate",
+		},
+		{
+			name: "duplicate diagram name case-insensitive",
+			diagrams: []ArchDiagramRef{
+				{Name: "Checkout Flow", Path: mmdFile},
+				{Name: "checkout flow", Path: mmdFile},
+			},
+			wantErr: true,
+			errMsg:  "is a duplicate",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := Config{Version: 1, Service: validService, ArchitectureDiagrams: tt.diagrams}
+			err := cfg.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil && !contains(err.Error(), tt.errMsg) {
+				t.Errorf("Validate() error message = %v, want to contain %v", err.Error(), tt.errMsg)
+			}
+		})
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
 		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))

@@ -533,9 +533,17 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	archNames := make(map[string]bool)
 	for i, ad := range c.ArchitectureDiagrams {
 		if ad.Name == "" {
 			problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].name is required", i))
+		} else {
+			lowerName := strings.ToLower(ad.Name)
+			if archNames[lowerName] {
+				problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].name %q is a duplicate (diagram names must be unique case-insensitively)", i, ad.Name))
+			} else {
+				archNames[lowerName] = true
+			}
 		}
 		if ad.Path == "" {
 			problems = append(problems, fmt.Sprintf("architectureDiagrams[%d].path is required", i))
