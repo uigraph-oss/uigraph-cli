@@ -35,7 +35,8 @@ var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync service and APIs to UiGraph Gateway",
 	Long: `Reads .uigraph.yaml, captures git metadata, and syncs service, API groups, architecture diagrams, test packs/test cases, and database schemas (when configured) to the gateway.
-This command is designed to run in CI/CD environments and requires UIGRAPH_TOKEN environment variable.`,
+This command is designed to run in CI/CD environments and requires UIGRAPH_TOKEN environment variable.
+A dry run reaches no gateway, so it needs neither UIGRAPH_TOKEN nor a gateway URL.`,
 	Args: cobra.NoArgs,
 	RunE: runSync,
 }
@@ -46,7 +47,7 @@ func init() {
 	syncCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Sync to the UiGraph gateway ("+enterpriseGatewayURL+"); pass --enterprise=DEV for "+enterpriseDevGatewayURL)
 	syncCmd.Flags().Lookup("enterprise").NoOptDefVal = "DEFAULT"
 	syncCmd.MarkFlagsMutuallyExclusive("api-url", "enterprise")
-	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print payloads without sending to gateway")
+	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print payloads without sending to gateway (no token or gateway URL needed)")
 	syncCmd.Flags().BoolVar(&verbose, "verbose", false, "Log every MLflow and gateway request with its duration")
 }
 
@@ -107,7 +108,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	// 1. Authenticate using UIGRAPH_TOKEN
 	token := os.Getenv("UIGRAPH_TOKEN")
-	if token == "" {
+	if token == "" && !dryRun {
 		fmt.Fprintln(os.Stderr, "Error: UIGRAPH_TOKEN environment variable is required")
 		os.Exit(1)
 	}
@@ -125,7 +126,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if apiURL == "" {
 		apiURL = os.Getenv("UIGRAPH_GATEWAY_URL")
 	}
-	if apiURL == "" {
+	if apiURL == "" && !dryRun {
 		fmt.Fprintln(os.Stderr, "Error: gateway URL is required (set --enterprise, --api-url or UIGRAPH_GATEWAY_URL environment variable)")
 		os.Exit(1)
 	}
@@ -909,18 +910,20 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 		watermarks := map[string]time.Time{}
 		deletedProjects := map[string]bool{}
-		states, err := client.ListMLProjects(ctx, true)
-		if err != nil {
-			exitGatewayErrorErr("read last ML sync time", err)
-		}
-		for _, state := range states {
-			if state.DeletedAt != nil {
-				deletedProjects[state.Name] = true
+		if !dryRun {
+			states, err := client.ListMLProjects(ctx, true)
+			if err != nil {
+				exitGatewayErrorErr("read last ML sync time", err)
 			}
-			if state.SyncedAt == nil {
-				continue
+			for _, state := range states {
+				if state.DeletedAt != nil {
+					deletedProjects[state.Name] = true
+				}
+				if state.SyncedAt == nil {
+					continue
+				}
+				watermarks[state.Name] = *state.SyncedAt
 			}
-			watermarks[state.Name] = *state.SyncedAt
 		}
 
 		orderedML := make([]config.MLProjectRef, 0, len(cfg.ML))
