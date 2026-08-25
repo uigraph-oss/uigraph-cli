@@ -43,7 +43,7 @@ func init() {
 	releaseCmd.Flags().StringVar(&releaseTitle, "title", "", "Event title (defaults to the version)")
 	releaseCmd.Flags().StringVar(&configPath, "config", ".uigraph.yaml", "Path to config file")
 	releaseCmd.Flags().StringVar(&apiURL, "api-url", "", "Gateway API URL (defaults to UIGRAPH_GATEWAY_URL env var)")
-	releaseCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Record the release on the UiGraph gateway ("+enterpriseGatewayURL+"); pass --enterprise=DEV for "+enterpriseDevGatewayURL)
+	releaseCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Record the release on the UiGraph gateway ("+enterpriseGatewayURL+")")
 	releaseCmd.Flags().Lookup("enterprise").NoOptDefVal = "DEFAULT"
 	releaseCmd.MarkFlagsMutuallyExclusive("api-url", "enterprise")
 	releaseCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print the event without sending it to the gateway (no token or gateway URL needed)")
