@@ -44,7 +44,7 @@ A dry run reaches no gateway, so it needs neither UIGRAPH_TOKEN nor a gateway UR
 func init() {
 	syncCmd.Flags().StringVar(&configPath, "config", ".uigraph.yaml", "Path to config file")
 	syncCmd.Flags().StringVar(&apiURL, "api-url", "", "Gateway API URL (defaults to UIGRAPH_GATEWAY_URL env var)")
-	syncCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Sync to the UiGraph gateway ("+enterpriseGatewayURL+"); pass --enterprise=DEV for "+enterpriseDevGatewayURL)
+	syncCmd.Flags().StringVar(&enterpriseEnv, "enterprise", "", "Sync to the UiGraph gateway ("+enterpriseGatewayURL+")")
 	syncCmd.Flags().Lookup("enterprise").NoOptDefVal = "DEFAULT"
 	syncCmd.MarkFlagsMutuallyExclusive("api-url", "enterprise")
 	syncCmd.Flags().BoolVar(&dryRun, "dry-run", false, "Print payloads without sending to gateway (no token or gateway URL needed)")
