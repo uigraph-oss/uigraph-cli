@@ -34,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # `uigraph release` reads the previous tag and the commit range, so it
+          # `uigraph-cli release` reads the previous tag and the commit range, so it
           # needs the full history, not the default shallow clone.
           fetch-depth: 0
 
@@ -51,4 +51,4 @@ jobs:
         env:
           UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
         run: |
-          uigraph release
+          uigraph-cli release

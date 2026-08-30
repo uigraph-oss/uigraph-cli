@@ -8,7 +8,7 @@ set -e
 # Configuration
 REPO="uigraph/uigraph-cli"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
-BINARY_NAME="uigraph"
+BINARY_NAME="uigraph-cli"
 
 # Detect OS and architecture
 OS="$(uname -s)"
@@ -71,7 +71,7 @@ fi
 echo "✓ UiGraph CLI installed successfully!"
 echo ""
 echo "Usage:"
-echo "  uigraph sync"
+echo "  uigraph-cli sync"
 echo ""
 echo "Documentation:"
 echo "  https://docs.uigraph.app/cli"
