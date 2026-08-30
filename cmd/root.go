@@ -14,7 +14,7 @@ const (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "uigraph",
+	Use:   "uigraph-cli",
 	Short: "UiGraph CLI - Sync services and APIs to UiGraph Gateway",
 	Long: `UiGraph CLI is a stateless, non-interactive tool designed for CI/CD environments.
 It syncs service metadata and API specifications to the UiGraph Gateway backend.`,

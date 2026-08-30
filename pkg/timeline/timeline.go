@@ -52,7 +52,7 @@ var (
 )
 
 // Scan walks the configured decision, incident and changelog sources and turns
-// each one into an upsertable event. It is called on every `uigraph sync`, so
+// each one into an upsertable event. It is called on every `uigraph-cli sync`, so
 // every sourceRef is derived from the file path or version rather than the
 // title — renaming a heading updates the event instead of duplicating it.
 func Scan(cfg *config.Config) ([]Event, error) {

@@ -22,7 +22,7 @@ examples/
 ```bash
 cd examples/configs
 export UIGRAPH_TOKEN=your-token
-uigraph sync --config backend-service.yaml
+uigraph-cli sync --config backend-service.yaml
 ```
 
 ### 2. Dry Run
@@ -30,7 +30,7 @@ uigraph sync --config backend-service.yaml
 Preview what will be synced without actually sending data:
 
 ```bash
-uigraph sync --config backend-service.yaml --dry-run
+uigraph-cli sync --config backend-service.yaml --dry-run
 ```
 
 ## Configuration Examples
@@ -71,7 +71,7 @@ See [`ci-cd/github-actions.yml`](ci-cd/github-actions.yml)
 - name: Sync to UiGraph
   env:
     UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
-  run: uigraph sync
+  run: uigraph-cli sync
 ```
 
 #### Advanced (with PR dry-run)
@@ -87,7 +87,7 @@ See [`ci-cd/gitlab-ci.yml`](ci-cd/gitlab-ci.yml)
 uigraph-sync:
   script:
     - curl -sSL https://cli.uigraph.app/install.sh | sh
-    - uigraph sync
+    - uigraph-cli sync
 ```
 
 ### Bitbucket Pipelines
@@ -184,10 +184,10 @@ export UIGRAPH_TOKEN=your-test-token
 
 ```bash
 # Dry run (safe, no data sent)
-./bin/uigraph sync --config examples/configs/backend-service.yaml --dry-run
+./bin/uigraph-cli sync --config examples/configs/backend-service.yaml --dry-run
 
 # Actual sync (sends data to gateway)
-./bin/uigraph sync --config examples/configs/backend-service.yaml
+./bin/uigraph-cli sync --config examples/configs/backend-service.yaml
 ```
 
 ## Tips & Best Practices
@@ -199,10 +199,10 @@ Always preview changes before syncing:
 ```yaml
 # In your CI/CD
 - name: Preview changes
-  run: uigraph sync --dry-run
+  run: uigraph-cli sync --dry-run
 
 - name: Sync if approved
-  run: uigraph sync
+  run: uigraph-cli sync
 ```
 
 ### 2. Validate Config Locally
@@ -210,7 +210,7 @@ Always preview changes before syncing:
 Use dry-run to catch configuration errors early:
 
 ```bash
-uigraph sync --config .uigraph.yaml --dry-run
+uigraph-cli sync --config .uigraph.yaml --dry-run
 ```
 
 ### 3. Organize API Specs
@@ -252,7 +252,7 @@ git commit -m "Update API spec"
 
 ```bash
 # Check config syntax
-uigraph sync --config .uigraph.yaml --dry-run
+uigraph-cli sync --config .uigraph.yaml --dry-run
 ```
 
 ### Missing API Spec File

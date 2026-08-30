@@ -42,7 +42,7 @@ make test
 
 ```bash
 cd examples
-UIGRAPH_TOKEN=test-token ../bin/uigraph sync --dry-run
+UIGRAPH_TOKEN=test-token ../bin/uigraph-cli sync --dry-run
 ```
 
 ## Project Structure
@@ -198,7 +198,7 @@ Then create a pull request on GitHub.
 
 ### Good Bug Reports Include
 
-- uigraph-cli version (`uigraph --version`)
+- uigraph-cli version (`uigraph-cli --version`)
 - Go version
 - Operating system
 - Complete error message
@@ -211,13 +211,13 @@ Then create a pull request on GitHub.
 ```markdown
 ## Bug: CLI fails with valid YAML config
 
-**Version:** uigraph v1.0.0
+**Version:** uigraph-cli v1.0.0
 **OS:** Ubuntu 22.04
 **Go:** 1.23
 
 **Steps:**
 1. Create .uigraph.yaml with valid content
-2. Run `uigraph sync`
+2. Run `uigraph-cli sync`
 
 **Expected:** Service syncs successfully
 **Actual:** Error: ".uigraph.yaml is not valid YAML"

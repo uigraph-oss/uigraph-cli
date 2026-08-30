@@ -52,7 +52,7 @@ make build
 3. Run:
 
 ```bash
-uigraph sync --enterprise
+uigraph-cli sync --enterprise
 ```
 
 `--enterprise` points the CLI at the UiGraph gateway (`--enterprise=DEV` for the dev
@@ -81,20 +81,20 @@ apis:
 ## Common Usage
 
 ```bash
-uigraph sync
-uigraph sync --config ./config/.uigraph.yaml
-uigraph sync --dry-run
-uigraph sync --enterprise
-uigraph sync --enterprise=DEV --dry-run
+uigraph-cli sync
+uigraph-cli sync --config ./config/.uigraph.yaml
+uigraph-cli sync --dry-run
+uigraph-cli sync --enterprise
+uigraph-cli sync --enterprise=DEV --dry-run
 ```
 
 Record a release from a tag-triggered pipeline job. The version, notes and
 commit range are resolved from git at the moment the tag is cut:
 
 ```bash
-uigraph release
-uigraph release --version v1.2.3 --notes-file ./RELEASE_NOTES.md
-uigraph release --dry-run
+uigraph-cli release
+uigraph-cli release --version v1.2.3 --notes-file ./RELEASE_NOTES.md
+uigraph-cli release --dry-run
 ```
 
 ## What It Supports
@@ -104,7 +104,7 @@ uigraph release --dry-run
 - Syncing cost category tags that decide which cloud resources roll up into a service's costs
 - Syncing test packs and test cases, including reference screenshots
 - Scanning the repo for timeline events — ADRs, postmortems, and CHANGELOG releases
-- Recording a release on the timeline from a CI/CD tag job via `uigraph release`
+- Recording a release on the timeline from a CI/CD tag job via `uigraph-cli release`
 - Running cleanly in CI/CD pipelines
 - Capturing git metadata during sync
 

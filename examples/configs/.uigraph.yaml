@@ -104,7 +104,7 @@ costTags:
   - key: Service
     value: uigraph-cli
 
-# Timeline sources scanned on every `uigraph sync`. Each entry is upserted by
+# Timeline sources scanned on every `uigraph-cli sync`. Each entry is upserted by
 # its file path (or version), so editing or retitling a file updates the
 # existing event instead of creating a duplicate.
 timeline:
@@ -117,7 +117,7 @@ timeline:
       - docs/postmortems/*.md
   releases:
     # Fallback only, for repos that do not cut releases through CI. Omit this if
-    # your pipeline runs `uigraph release`, or the two sources will compete for
+    # your pipeline runs `uigraph-cli release`, or the two sources will compete for
     # the same release event.
     changelogPath: CHANGELOG.md
 
