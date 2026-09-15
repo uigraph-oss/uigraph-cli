@@ -330,6 +330,7 @@ type FocalPointSyncRequest struct {
 	X              float64 `json:"x"`
 	Y              float64 `json:"y"`
 	Visibility     string  `json:"visibility,omitempty"`
+	Color          string  `json:"color,omitempty"`
 	CommitHash     string  `json:"commitHash,omitempty"`
 }
 
@@ -337,6 +338,16 @@ type FocalPointSyncResponse struct {
 	FocalPointID string `json:"focalPointId"`
 	PageID       string `json:"pageId"`
 	Message      string `json:"message"`
+}
+
+type FramePublishRequest struct {
+	MapName   string `json:"mapName"`
+	FrameName string `json:"frameName"`
+}
+
+type FramePublishResponse struct {
+	VersionCreated bool `json:"versionCreated"`
+	VersionNumber  int  `json:"versionNumber"`
 }
 
 type ComponentFieldItem struct {
@@ -826,6 +837,45 @@ func (c *Client) SyncFocalPoint(ctx context.Context, req FocalPointSyncRequest) 
 	}
 
 	return &syncResp, nil
+}
+
+func (c *Client) PublishFrame(ctx context.Context, req FramePublishRequest) (*FramePublishResponse, error) {
+	url := fmt.Sprintf("%s/v1/sync/frame/publish", c.baseURL)
+
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("X-API-Token", c.token)
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		return nil, formatGatewayError(resp.StatusCode, respBody)
+	}
+
+	var publishResp FramePublishResponse
+	if err := json.Unmarshal(respBody, &publishResp); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	return &publishResp, nil
 }
 
 func (c *Client) SyncFocalPointMeta(ctx context.Context, req FocalPointMetaSyncRequest) (*FocalPointMetaSyncResponse, error) {
