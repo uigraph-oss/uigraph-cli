@@ -141,6 +141,7 @@ type FocalPointRef struct {
 	X          float64             `yaml:"x"`
 	Y          float64             `yaml:"y"`
 	Visibility string              `yaml:"visibility,omitempty"`
+	Color      string              `yaml:"color,omitempty"`
 	Components []FocalPointMetaRef `yaml:"components,omitempty"`
 }
 
@@ -659,6 +660,7 @@ func (c *Config) Validate() error {
 		"component_support-kb-troubleshooting": true,
 		"component_backend-flow-diagram":       true,
 	}
+	hexColor := regexp.MustCompile("^#[0-9a-fA-F]{6}$")
 	for i, m := range c.Maps {
 		if m.Name == "" {
 			problems = append(problems, fmt.Sprintf("maps[%d].name is required", i))
@@ -675,6 +677,9 @@ func (c *Config) Validate() error {
 			for k, fp := range frame.FocalPoints {
 				if fp.Name == "" {
 					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].name is required", i, j, k))
+				}
+				if fp.Color != "" && !hexColor.MatchString(fp.Color) {
+					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].color must be a hex color like \"#FF5733\"", i, j, k))
 				}
 				for l, comp := range fp.Components {
 					if comp.ComponentID == "" {

@@ -852,6 +852,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 						X:              fp.X,
 						Y:              fp.Y,
 						Visibility:     visibility,
+						Color:          fp.Color,
 						CommitHash:     gitMeta.CommitHash,
 					})
 					if err != nil {
@@ -891,6 +892,19 @@ func runSync(cmd *cobra.Command, args []string) error {
 						}
 						fmt.Printf("          ✓ Component: %s\n", comp.ComponentID)
 					}
+				}
+
+				publishResp, err := client.PublishFrame(ctx, gateway.FramePublishRequest{
+					MapName:   m.Name,
+					FrameName: frame.Name,
+				})
+				if err != nil {
+					exitGatewayError(fmt.Sprintf("publish version for frame %q", frame.Name))
+				}
+				if publishResp.VersionCreated {
+					fmt.Printf("      ✓ Version %d published\n", publishResp.VersionNumber)
+				} else {
+					fmt.Printf("      ✓ No changes since version %d\n", publishResp.VersionNumber)
 				}
 			}
 		}
