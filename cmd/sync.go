@@ -165,9 +165,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 	if cfg.Service.Name != "" {
 		fmt.Printf("\n🚀 Syncing service: %s\n", cfg.Service.Name)
 
+		dataFlow := ""
+		if cfg.DataFlow != "" {
+			dataFlowBytes, err := os.ReadFile(cfg.DataFlow)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "    Error reading data flow file %s: %v\n", cfg.DataFlow, err)
+				os.Exit(1)
+			}
+			dataFlow = string(dataFlowBytes)
+			fmt.Printf("  • Data flow: %s\n", cfg.DataFlow)
+		}
+
 		syncReq := gateway.ServiceSyncRequest{
-			Service: cfg.Service,
-			Git:     gitMeta,
+			Service:  cfg.Service,
+			DataFlow: dataFlow,
+			Git:      gitMeta,
 			Source: gateway.Source{
 				Type: "ci",
 				Tool: "uigraph-cli",

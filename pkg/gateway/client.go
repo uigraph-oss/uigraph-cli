@@ -34,9 +34,10 @@ type Source struct {
 }
 
 type ServiceSyncRequest struct {
-	Service config.Service `json:"service"`
-	Git     git.Metadata   `json:"git"`
-	Source  Source         `json:"source"`
+	Service  config.Service `json:"service"`
+	DataFlow string         `json:"dataFlow"`
+	Git      git.Metadata   `json:"git"`
+	Source   Source         `json:"source"`
 }
 
 type ServiceSyncResponse struct {

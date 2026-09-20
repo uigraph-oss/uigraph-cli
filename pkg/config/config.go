@@ -24,6 +24,7 @@ type Config struct {
 	Version              int              `yaml:"version"`
 	Service              Service          `yaml:"service"`
 	APIs                 []APIRef         `yaml:"apis"`
+	DataFlow             string           `yaml:"dataFlow,omitempty"`
 	Dependencies         []DependencyRef  `yaml:"dependencies,omitempty"`
 	ArchitectureDiagrams []ArchDiagramRef `yaml:"architectureDiagrams,omitempty"`
 	TestPacks            []TestPackRef    `yaml:"testPacks,omitempty"`
