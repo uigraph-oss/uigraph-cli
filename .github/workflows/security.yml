@@ -1,0 +1,44 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install osv-scanner
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/osv-scanner" https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+
+      - name: Scan dependencies
+        run: |
+          status=0
+          "$RUNNER_TEMP/osv-scanner" scan source -r . || status=$?
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
+          status=0
+          "$RUNNER_TEMP/osv-scanner" scan source -r --format json --output-file "$RUNNER_TEMP/osv.json" . || status=$?
+          if [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi
+          count=$(jq '[.results[]?.packages[].groups[] | select((.max_severity // "" | tonumber? // 0) >= 7)] | length' "$RUNNER_TEMP/osv.json")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count High/Critical vulnerabilities found"
+            exit 1
+          fi
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: '1.25'
