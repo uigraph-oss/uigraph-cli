@@ -141,7 +141,22 @@ type FocalPointRef struct {
 	X          float64             `yaml:"x"`
 	Y          float64             `yaml:"y"`
 	Visibility string              `yaml:"visibility,omitempty"`
+	Color      *string             `yaml:"color,omitempty"`
 	Components []FocalPointMetaRef `yaml:"components,omitempty"`
+}
+
+func (f *FocalPointRef) UnmarshalYAML(node *yaml.Node) error {
+	type plain FocalPointRef
+	if err := node.Decode((*plain)(f)); err != nil {
+		return err
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == "color" && node.Content[i+1].ShortTag() == "!!null" {
+			empty := ""
+			f.Color = &empty
+		}
+	}
+	return nil
 }
 
 type FocalPointMetaRef struct {
@@ -659,6 +674,7 @@ func (c *Config) Validate() error {
 		"component_support-kb-troubleshooting": true,
 		"component_backend-flow-diagram":       true,
 	}
+	hexColor := regexp.MustCompile("^#[0-9a-fA-F]{6}$")
 	for i, m := range c.Maps {
 		if m.Name == "" {
 			problems = append(problems, fmt.Sprintf("maps[%d].name is required", i))
@@ -675,6 +691,9 @@ func (c *Config) Validate() error {
 			for k, fp := range frame.FocalPoints {
 				if fp.Name == "" {
 					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].name is required", i, j, k))
+				}
+				if fp.Color != nil && *fp.Color != "" && !hexColor.MatchString(*fp.Color) {
+					problems = append(problems, fmt.Sprintf("maps[%d].frames[%d].focalPoints[%d].color must be a hex color like \"#FF5733\"", i, j, k))
 				}
 				for l, comp := range fp.Components {
 					if comp.ComponentID == "" {
