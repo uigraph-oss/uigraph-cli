@@ -330,7 +330,7 @@ type FocalPointSyncRequest struct {
 	X              float64 `json:"x"`
 	Y              float64 `json:"y"`
 	Visibility     string  `json:"visibility,omitempty"`
-	Color          string  `json:"color,omitempty"`
+	Color          *string `json:"color,omitempty"`
 	CommitHash     string  `json:"commitHash,omitempty"`
 }
 
