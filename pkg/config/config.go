@@ -653,7 +653,7 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "txt": true, "image": true, "video": true, "audio": true, "other": true}
+	validFileTypes := map[string]bool{"pdf": true, "html": true, "markdown": true, "doc": true, "txt": true, "image": true, "video": true, "audio": true, "walkthrough": true, "other": true}
 	for i, doc := range c.Docs {
 		if doc.Name == "" {
 			problems = append(problems, fmt.Sprintf("docs[%d].name is required", i))
@@ -664,7 +664,7 @@ func (c *Config) Validate() error {
 			problems = append(problems, fmt.Sprintf("docs[%d].path file does not exist: %s", i, doc.Path))
 		}
 		if doc.FileType != "" && !validFileTypes[doc.FileType] {
-			problems = append(problems, fmt.Sprintf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, other", i))
+			problems = append(problems, fmt.Sprintf("docs[%d].fileType must be one of: pdf, html, markdown, doc, txt, image, video, audio, walkthrough, other", i))
 		}
 	}
 
