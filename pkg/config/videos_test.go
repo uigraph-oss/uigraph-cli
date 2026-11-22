@@ -26,64 +26,44 @@ func videoRepo(t *testing.T, config string, files map[string]string) string {
 	return cfg
 }
 
-const loginVideo = "walkthrough: login\ntitle: How login works\ndescription: Sign-in, start to end.\nscenes: [{say: hi}]\n"
-
-func TestVideosAreFoundWithoutAnySection(t *testing.T) {
-	cfg, err := Load(videoRepo(t, "", map[string]string{
-		".uigraph/videos/login.video.yaml": loginVideo,
-		".uigraph/videos/plain.video.yaml": "title: Not a video\nscenes: []\n",
-	}))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(cfg.Docs) != 1 || cfg.Docs[0].Name != "How login works" || cfg.Docs[0].FileType != WalkthroughFileType ||
-		cfg.Docs[0].Description != "Sign-in, start to end." {
-		t.Fatalf("docs: %+v", cfg.Docs)
-	}
-}
-
-func TestVideosSectionListsPathsAndGlobs(t *testing.T) {
-	cfg, err := Load(videoRepo(t, "videos:\n  - tours/*.video.yaml\n  - extra/one.yaml\n", map[string]string{
-		"tours/a.video.yaml":                 loginVideo,
-		"tours/b.video.yaml":                 "walkthrough: b\nscenes: []\n",
-		"extra/one.yaml":                     "walkthrough: one\ntitle: One\nscenes: []\n",
-		".uigraph/videos/ignored.video.yaml": loginVideo, // not listed, so not synced
+func TestVideosSectionListsPaths(t *testing.T) {
+	cfg, err := Load(videoRepo(t, "videos:\n  - tours/checkout.yaml\n  - login.video.yaml\n  - plain.yml\n", map[string]string{
+		"tours/checkout.yaml": "title: How checkout works\ndescription: Cart to receipt.\nscenes: []\n",
+		"login.video.yaml":    "scenes: []\n",
+		"plain.yml":           "title: Plain\n",
+		"other.video.yaml":    "title: Not listed\n", // not listed, so not synced
 	}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var names []string
 	for _, d := range cfg.Docs {
+		if d.FileType != WalkthroughFileType {
+			t.Errorf("%s has file type %q", d.Name, d.FileType)
+		}
 		names = append(names, d.Name)
 	}
-	if got := strings.Join(names, ","); got != "How login works,b,One" {
+	if got := strings.Join(names, ","); got != "How checkout works,login,Plain" {
 		t.Fatalf("docs = %s", got)
 	}
-}
-
-func TestVideosSectionErrors(t *testing.T) {
-	_, err := Load(videoRepo(t, "videos:\n  - nope/*.video.yaml\n", nil))
-	if err == nil || !strings.Contains(err.Error(), "videos[0] matches no file") {
-		t.Fatalf("missing file: %v", err)
-	}
-	_, err = Load(videoRepo(t, "videos:\n  - a.yaml\n", map[string]string{"a.yaml": "title: nope\n"}))
-	if err == nil || !strings.Contains(err.Error(), "is not a video file") {
-		t.Fatalf("not a video: %v", err)
+	if cfg.Docs[0].Description != "Cart to receipt." {
+		t.Errorf("description = %q", cfg.Docs[0].Description)
 	}
 }
 
-func TestVideoAlsoListedAsDocIsNotDuplicated(t *testing.T) {
-	root := videoRepo(t, "", map[string]string{".uigraph/videos/login.video.yaml": loginVideo})
-	dir := filepath.Dir(root)
-	p := filepath.Join(dir, ".uigraph/videos/login.video.yaml")
-	if err := os.WriteFile(root, []byte("version: 1\nservice:\n  name: Svc\ndocs:\n  - name: Login\n    path: "+p+"\n    fileType: walkthrough\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(root)
+func TestNoVideosSectionSyncsNoVideos(t *testing.T) {
+	cfg, err := Load(videoRepo(t, "", map[string]string{".uigraph/videos/login.video.yaml": "title: Login\n"}))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cfg.Docs) != 1 || cfg.Docs[0].Name != "Login" {
+	if len(cfg.Docs) != 0 {
 		t.Fatalf("docs: %+v", cfg.Docs)
+	}
+}
+
+func TestVideoThatDoesNotExistIsAnError(t *testing.T) {
+	_, err := Load(videoRepo(t, "videos:\n  - nope.yaml\n", nil))
+	if err == nil || !strings.Contains(err.Error(), "videos[0] file not found") {
+		t.Fatalf("err = %v", err)
 	}
 }
