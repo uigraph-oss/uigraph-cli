@@ -31,6 +31,7 @@ type Config struct {
 	Queries              []QueryRef       `yaml:"queries,omitempty"`
 	QueryFiles           []string         `yaml:"queryFiles,omitempty"`
 	Docs                 []DocRef         `yaml:"docs,omitempty"`
+	Videos               []string         `yaml:"videos,omitempty"`
 	Maps                 []MapRef         `yaml:"maps,omitempty"`
 	ML                   []MLProjectRef   `yaml:"ml,omitempty"`
 	CostTags             []CostTag        `yaml:"costTags,omitempty"`
@@ -414,6 +415,20 @@ func Load(path string) (*Config, error) {
 			return nil, err
 		}
 		cfg.Queries = append(cfg.Queries, f.Queries...)
+	}
+
+	videos, err := videoDocs(filepath.Dir(path), cfg.Videos)
+	if err != nil {
+		return nil, err
+	}
+	listed := map[string]bool{}
+	for _, d := range cfg.Docs {
+		listed[filepath.Clean(d.Path)] = true
+	}
+	for _, d := range videos {
+		if !listed[filepath.Clean(d.Path)] {
+			cfg.Docs = append(cfg.Docs, d)
+		}
 	}
 
 	return &cfg, nil
