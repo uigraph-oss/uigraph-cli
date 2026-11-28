@@ -1,0 +1,27 @@
+name: UIGraph sync
+
+# Pushes this repository's .uigraph.yaml and .uigraph/ artifacts to UIGraph Cloud on every
+# merge to main. Needs the repository secret UIGRAPH_TOKEN (a service account token).
+# Organization secrets do not reach private repositories on our plan, so it is set per repo.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: uigraph-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync to UIGraph Cloud
+        env:
+          UIGRAPH_TOKEN: ${{ secrets.UIGRAPH_TOKEN }}
+        run: |
+          docker run --rm -v "$PWD:/workspace" -w /workspace \
+            -e UIGRAPH_TOKEN \
+            uigraph/uigraph-cli:1.0.10 sync --enterprise

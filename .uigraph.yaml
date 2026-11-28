@@ -1,0 +1,63 @@
+version: 1
+
+service:
+  name: uigraph-cli
+  category: CLI
+  description: Go CLI that reads a repository's .uigraph.yaml and syncs service metadata, API specs, dependencies, diagrams, databases, tests, docs, videos, timeline, maps, and MLflow projects to UIGraph through uigraph-gateway. Also records releases on the service timeline. Runs in CI from the uigraph/uigraph-cli Docker image or via go install.
+  repository:
+    provider: github
+    url: https://github.com/uigraph-oss/uigraph-cli
+  ownership:
+    team: Engineering
+  labels:
+    - cli
+    - go
+    - ci
+
+dependencies:
+  - name: gateway-sync-api
+    service: uigraph-gateway
+    direction: downstream
+    criticality: hard
+    type: http
+    description: Every sync and release call goes to the gateway's /v1/sync routes with X-API-Token. --enterprise targets https://console.uigraph.app/gateway, --enterprise=DEV the dev console, --api-url or UIGRAPH_GATEWAY_URL a self-hosted gateway.
+    apiGroupName: gateway-api
+  - name: object-storage-uploads
+    service: Object Storage
+    direction: downstream
+    criticality: soft
+    type: http
+    description: Docs, frames, and test screenshots are PUT straight to presigned URLs that the gateway hands out.
+  - name: mlflow
+    service: MLflow
+    direction: downstream
+    criticality: soft
+    type: http
+    description: The ml section pulls models, experiments, and runs from an MLflow server before syncing them.
+  - name: api-onboarding-workflows
+    service: uigraph-api
+    direction: upstream
+    criticality: soft
+    description: The GitHub App's onboarding and sync workflows that uigraph-api commits into repositories run go install uigraph-cli@main and then uigraph-cli sync.
+
+architectureDiagrams:
+  - name: uigraph-cli system context
+    path: .uigraph/diagrams/system-context/system-context.mmd
+    contextPath: .uigraph/diagrams/system-context/context.json
+  - name: Sync pipeline order
+    path: .uigraph/diagrams/sync-pipeline/sync-pipeline.mmd
+    contextPath: .uigraph/diagrams/sync-pipeline/context.json
+
+docs:
+  - name: How uigraph-cli works
+    path: .uigraph/docs/overview.md
+    fileType: markdown
+    description: Commands, targets, the sync order, upload protocol, and how it is released.
+  - name: README
+    path: README.md
+    fileType: markdown
+    description: Installation with Go or Docker, and pointers to the hosted docs.
+  - name: Examples
+    path: examples/README.md
+    fileType: markdown
+    description: Example configs, specs, and CI/CD pipelines.

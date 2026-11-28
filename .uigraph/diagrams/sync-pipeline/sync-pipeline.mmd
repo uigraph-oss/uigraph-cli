@@ -1,0 +1,31 @@
+flowchart TB
+  token[1. Read UIGRAPH_TOKEN and gateway URL]
+  config[2. Load and validate .uigraph.yaml]
+  git[3. Capture git metadata]
+  service[5. Service]
+  no_service[Maps and frames only]
+  databases[6. Database schemas and saved queries]
+  apis[7. API groups from spec files]
+  deps[8. Dependencies and cost tags]
+  diagrams[9. Architecture diagrams]
+  tests[10. Test packs, cases, screenshots]
+  docs[11. Docs and videos, two-step upload]
+  timeline[11b. Timeline from repo files]
+  maps[12. Maps, frames, focal points, publish]
+  ml[13. MLflow projects]
+  summary[14. Summary]
+  token --> config
+  config --> git
+  git -->|service block present| service
+  git -->|no service block| no_service
+  service --> databases
+  databases --> apis
+  apis --> deps
+  deps --> diagrams
+  diagrams --> tests
+  tests --> docs
+  docs --> timeline
+  timeline --> maps
+  no_service --> maps
+  maps --> ml
+  ml --> summary
