@@ -21,7 +21,6 @@ chosen by exactly one of:
 | Flag | Gateway |
 |---|---|
 | `--enterprise` | `https://console.uigraph.app/gateway` (UIGraph Cloud) |
-| `--enterprise=DEV` | `https://console.dev.uigraph.app/gateway` |
 | `--api-url` or `UIGRAPH_GATEWAY_URL` | A self-hosted gateway |
 
 ## Order of a sync
