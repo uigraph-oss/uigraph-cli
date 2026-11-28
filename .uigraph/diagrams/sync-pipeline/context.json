@@ -1,0 +1,6 @@
+{
+  "nodes": {
+    "docs": { "name": "11. Docs and videos, two-step upload", "data": { "Protocol": { "type": "Text Input", "value": "prepare (hash) -> skip, or presigned PUT -> complete. Videos are turned into docs by pkg/config/videos.go" } } },
+    "deps": { "name": "8. Dependencies and cost tags", "data": { "Note": { "type": "Text Input", "value": "costTags is declarative: listing it deletes any rule not listed" } } }
+  }
+}

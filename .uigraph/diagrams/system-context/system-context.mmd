@@ -1,0 +1,15 @@
+flowchart LR
+  repo[Repository with .uigraph.yaml]
+  ci[CI job or developer]
+  cli[uigraph-cli]
+  mlflow[MLflow]
+  gateway[uigraph-gateway]
+  storage[(Object Storage)]
+  api[uigraph-api]
+  ci -->|UIGRAPH_TOKEN| cli
+  repo -->|config and files| cli
+  cli -->|ml section| mlflow
+  cli -->|/v1/sync X-API-Token| gateway
+  cli -->|PUT presigned| storage
+  gateway --> api
+  gateway --> storage

@@ -1,0 +1,6 @@
+{
+  "nodes": {
+    "cli": { "name": "uigraph-cli", "data": { "Commands": { "type": "Text Input", "value": "sync, release" }, "Code": { "type": "Text Input", "value": "cmd/sync.go, cmd/release.go, pkg/gateway/client.go" } } },
+    "gateway": { "name": "uigraph-gateway", "data": { "Targets": { "type": "Text Input", "value": "--enterprise (console.uigraph.app/gateway), --enterprise=DEV, --api-url or UIGRAPH_GATEWAY_URL" } } }
+  }
+}
